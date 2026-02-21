@@ -9,6 +9,15 @@
   --desk: #101419; /* Deep Midnight (Premium Dark Blue/Black) */
 }
 
+:root {
+  /* CORKBOARD PALETTE */
+  --desk: #2d1e14;      /* Deep Espresso Wood */
+  --cork: #6b4423;      /* Warm Cork Brown */
+  --paper: #f5f2e8;     /* Recycled Paper */
+  --ink: #1a120b;       /* Darkest Brown / Ink */
+  --accent: #ffbb00;    /* Classic Tape Yellow */
+}
+
 body {
   background-color: var(--desk);
   color: var(--ink);
@@ -44,7 +53,12 @@ body {
   content: "";
   position: absolute;
   inset: 0;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.08'/%3E%3C/svg%3E");
+  /* HOW TO TWEAK IT YOURSELF:
+    - opacity='0.18': Controls how dark/visible the fuzz is. (Try 0.25 if you want it extreme)
+    - baseFrequency='0.9': Controls the size of the grain. Higher = smaller grains.
+    - numOctaves='4': Adds more layers of detail to the noise.
+  */
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.18'/%3E%3C/svg%3E");
   pointer-events: none;
   mix-blend-mode: multiply;
   z-index: 0;
@@ -62,4 +76,16 @@ body {
 
 .tl-canvas {
   background-color: var(--paper) !important;
+}
+
+@utility shadow-brutal {
+  box-shadow: 4px 4px 0px 0px rgba(45, 42, 38, 1);
+}
+
+@utility shadow-brutal-lg {
+  box-shadow: 8px 8px 0px 0px rgba(45, 42, 38, 1);
+}
+
+@utility shadow-brutal-hover {
+  box-shadow: 2px 2px 0px 0px rgba(45, 42, 38, 1);
 }
