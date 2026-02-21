@@ -16,13 +16,19 @@ export default function AvailabilityCalendar({ employeeIds }: { employeeIds: str
       const end = new Date(new Date().setHours(23, 59, 59)).toISOString();
       
       try {
-        const res = await fetch(`/api/availability?employees=${employeeIds.join(',')}&start=${start}&end=${end}`);
+        const res = await fetch(`/api/availability?profiles=${employeeIds.join(',')}&start=${start}&end=${end}`);
+        
+        // Safety check to ensure the response is actually JSON
+        const contentType = res.headers.get("content-type");
+        if (!contentType || !contentType.includes("application/json")) {
+          const text = await res.text();
+          throw new Error(`Expected JSON but got: ${text.substring(0, 100)}...`);
+        }
+
         const data = await res.json();
         setAvailability(data);
       } catch (error) {
-        console.error("Failed to load availability", error);
-      } finally {
-        setLoading(false);
+        console.error("Failed to load availability:", error);
       }
     }
 
