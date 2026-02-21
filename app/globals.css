@@ -3,11 +3,16 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  --primary: #0891b2;
+  --primary-light: #06b6d4;
+  --accent: #0e7490;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-primary: var(--primary);
+  --color-accent: var(--accent);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
@@ -22,5 +27,27 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu",
+    "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Smooth transitions */
+button {
+  @apply transition-all duration-200;
+}
+
+/* Focus states for accessibility */
+input:focus,
+button:focus {
+  @apply outline-none;
+}
+
+/* Glassmorphism support */
+@supports (backdrop-filter: blur(1px)) {
+  .backdrop-blur {
+    backdrop-filter: blur(10px);
+  }
 }
