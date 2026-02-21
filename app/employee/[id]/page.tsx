@@ -3,244 +3,157 @@
 import { use, useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { ArrowLeft, Code2, Briefcase, Users, Building2 } from "lucide-react";
+import { supabase } from "@/utils/supabase";
+import { ArrowLeft, Code2, Briefcase, Users, Building2, Star } from "lucide-react";
 import type { Profile } from "@/types/index";
-import { mockEmployees } from "@/lib/employees";
+import Loader from "@/app/board/[id]/components/Loader";
 
-export default function EmployeePage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
+export default function EmployeePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const [employee, setEmployee] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Simulate async data fetch
-    const mockData = mockEmployees[id];
+    const fetchEmployee = async () => {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', id)
+        .single();
 
-    // Use Promise to avoid setState warning
-    Promise.resolve().then(() => {
-      setEmployee(mockData || null);
+      if (!error && data) {
+        setEmployee(data as Profile);
+      }
       setLoading(false);
-    });
+    };
+    fetchEmployee();
   }, [id]);
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-white dark:bg-gray-950 flex items-center justify-center">
-        <p className="text-gray-500 dark:text-gray-400">
-          Loading employee details...
-        </p>
-      </div>
-    );
-  }
+  if (loading) return <Loader />;
 
   if (!employee) {
     return (
-      <div className="min-h-screen bg-white dark:bg-gray-950 flex flex-col items-center justify-center">
-        <p className="text-gray-500 dark:text-gray-400 mb-4">
-          Employee not found
-        </p>
-        <Link
-          href="/"
-          className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 font-medium"
-        >
-          Back to Dashboard
-        </Link>
+      <div className="min-h-screen cork-texture flex flex-col items-center justify-center p-6">
+        <div className="paper-texture bg-[#f5f2e8] p-8 border-4 border-[#2D2A26] shadow-brutal text-center">
+          <p className="font-black uppercase mb-4 text-[#2D2A26]">Operator Not Found</p>
+          <Link href="/?tab=staff" className="text-xs font-black uppercase underline decoration-2 underline-offset-4 hover:text-[#D97757]">
+            Return to HQ
+          </Link>
+        </div>
       </div>
     );
   }
 
   const utilizationRate = (
-    ((employee.meeting_hours_7d + employee.task_hours_7d) /
-      employee.max_capacity) *
-    100
+    ((employee.meeting_hours_7d + employee.task_hours_7d) / employee.max_capacity) * 100
   ).toFixed(0);
 
   return (
-    <div className="min-h-screen bg-white dark:bg-gray-950 flex flex-col text-gray-900 dark:text-gray-100 font-sans">
-      {/* Header */}
-      <nav className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 p-4 flex items-center shadow-sm">
-        <Link
-          href="/"
-          className="mr-6 text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 transition-colors"
-        >
-          <ArrowLeft size={20} />
+    <div className="min-h-screen cork-texture flex flex-col font-sans text-[#2D2A26]">
+      {/* 1. TOP NAV (Paper Texture) */}
+      <nav className="paper-texture bg-[#f5f2e8] border-b-2 border-[#2D2A26] px-8 py-4 flex items-center sticky top-0 z-40 shadow-md">
+        <Link href="/?tab=staff" className="mr-6 p-2 border-2 border-[#2D2A26] shadow-brutal-sm hover:shadow-none hover:translate-x-0.5 hover:translate-y-0.5 transition-all bg-white">
+          <ArrowLeft size={18} />
         </Link>
-        <h1 className="text-2xl font-bold tracking-tight">Employee Details</h1>
+        <h1 className="text-xl font-black tracking-tighter uppercase">Personnel Profile</h1>
       </nav>
 
-      {/* Main Content */}
-      <main className="flex-1 p-8 max-w-4xl mx-auto w-full">
+      {/* 2. MAIN CONTENT (Pinned Note Style) */}
+      <main className="flex-1 p-8 md:p-12 max-w-4xl mx-auto w-full relative z-10">
+        
         {/* Profile Card */}
-        <div className="bg-white dark:bg-gray-900 rounded-lg shadow-sm border border-gray-200 dark:border-gray-800 p-8 mb-8">
-          <div className="flex items-start gap-6 mb-8">
+        <div className="paper-texture bg-[#f5f2e8] border-2 border-[#2D2A26] p-10 shadow-brutal-lg mb-10 relative">
+          {/* Subtle Orange Tape mark */}
+          <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-12 h-4 bg-[#ffbb00] opacity-80 border border-[#2D2A26]/10"></div>
+
+          <div className="flex flex-col md:flex-row items-center md:items-start gap-8 mb-10 pb-10 border-b-2 border-dashed border-[#2D2A26]/20">
             {/* Avatar */}
-            <Image
-              src={employee.avatar_url || ""}
-              alt={employee.full_name}
-              width={96}
-              height={96}
-              className="rounded-lg shadow-md"
-            />
+            <div className="relative">
+              <Image
+                src={employee.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${employee.full_name}`}
+                alt={employee.full_name}
+                width={120}
+                height={120}
+                unoptimized
+                className="bg-white border-2 border-[#2D2A26] shadow-brutal rounded-sm"
+              />
+            </div>
 
             {/* Basic Info */}
-            <div className="flex-1">
-              <h2 className="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-1">
+            <div className="flex-1 text-center md:text-left">
+              <h2 className="text-4xl font-black uppercase tracking-tighter mb-2">
                 {employee.full_name}
               </h2>
-              <div className="flex items-center gap-2 mb-4">
-                <Briefcase
-                  size={18}
-                  className="text-gray-500 dark:text-gray-400"
-                />
-                <p className="text-lg text-gray-600 dark:text-gray-400">
+              <div className="flex items-center justify-center md:justify-start gap-2 mb-6">
+                <Briefcase size={16} className="opacity-40" />
+                <p className="font-bold text-sm uppercase tracking-widest text-gray-500">
                   {employee.role}
                 </p>
               </div>
 
               {/* Performance Rating */}
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">
-                  Performance:
-                </span>
+              <div className="flex items-center justify-center md:justify-start gap-4 bg-white/50 border-2 border-[#2D2A26] p-3 shadow-brutal-sm inline-flex">
+                <span className="text-[10px] font-black uppercase">Rating:</span>
                 <div className="flex gap-1">
                   {[...Array(5)].map((_, i) => (
-                    <span
+                    <Star
                       key={i}
-                      className={`text-lg ${
-                        i < Math.floor(employee.performance_rating)
-                          ? "text-yellow-400"
-                          : "text-gray-300 dark:text-gray-600"
-                      }`}
-                    >
-                      ★
-                    </span>
+                      size={14}
+                      fill={i < Math.floor(employee.performance_rating) ? "#2D2A26" : "none"}
+                      className={i < Math.floor(employee.performance_rating) ? "text-[#2D2A26]" : "text-gray-300"}
+                    />
                   ))}
                 </div>
-                <span className="text-sm text-gray-600 dark:text-gray-400">
-                  {employee.performance_rating}/5
-                </span>
+                <span className="font-mono font-bold text-xs">{employee.performance_rating}/5</span>
               </div>
             </div>
           </div>
 
-          {/* Organization Info */}
-          <div className="grid grid-cols-2 gap-4 mb-8 pb-8 border-b border-gray-200 dark:border-gray-800">
-            <div>
-              <div className="flex items-center gap-2 mb-2">
-                <Users size={16} className="text-gray-500 dark:text-gray-400" />
-                <p className="text-sm font-semibold text-gray-600 dark:text-gray-400">
-                  Team ID
-                </p>
-              </div>
-              <p className="text-gray-900 dark:text-gray-100 font-medium">
-                {employee.team_id || "N/A"}
-              </p>
+          {/* Org Info & Stats Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+            <div className="p-6 bg-white border-2 border-[#2D2A26] shadow-brutal-sm">
+              <p className="text-[10px] font-black uppercase opacity-40 mb-2">Capacity</p>
+              <p className="text-2xl font-black tracking-tighter">{employee.max_capacity}H</p>
+              <p className="text-[9px] font-bold opacity-30 mt-1 uppercase">Per Cycle</p>
             </div>
-            <div>
-              <div className="flex items-center gap-2 mb-2">
-                <Building2
-                  size={16}
-                  className="text-gray-500 dark:text-gray-400"
-                />
-                <p className="text-sm font-semibold text-gray-600 dark:text-gray-400">
-                  Organization ID
-                </p>
-              </div>
-              <p className="text-gray-900 dark:text-gray-100 font-medium">
-                {employee.org_id || "N/A"}
-              </p>
+            <div className="p-6 bg-white border-2 border-[#2D2A26] shadow-brutal-sm">
+              <p className="text-[10px] font-black uppercase opacity-40 mb-2">Meetings</p>
+              <p className="text-2xl font-black tracking-tighter">{employee.meeting_hours_7d}H</p>
+              <p className="text-[9px] font-bold opacity-30 mt-1 uppercase">Logged 7D</p>
+            </div>
+            <div className="p-6 bg-white border-2 border-[#2D2A26] shadow-brutal-sm">
+              <p className="text-[10px] font-black uppercase opacity-40 mb-2">Active Tasks</p>
+              <p className="text-2xl font-black tracking-tighter">{employee.task_hours_7d}H</p>
+              <p className="text-[9px] font-bold opacity-30 mt-1 uppercase">Production</p>
             </div>
           </div>
 
-          {/* Capacity & Hours */}
-          <div className="grid grid-cols-3 gap-6 mb-8">
-            <div className="p-4 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800">
-              <p className="text-sm text-blue-600 dark:text-blue-400 font-semibold mb-2">
-                Max Capacity
-              </p>
-              <p className="text-2xl font-bold text-blue-900 dark:text-blue-100">
-                {employee.max_capacity}h
-              </p>
-              <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
-                per week
-              </p>
+          {/* Utilization Progress Bar */}
+          <div className="bg-white border-2 border-[#2D2A26] p-6 shadow-brutal-sm">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-[10px] font-black uppercase tracking-widest">Total Utilization</p>
+              <p className="text-xl font-black">{utilizationRate}%</p>
             </div>
-
-            <div className="p-4 bg-purple-50 dark:bg-purple-950 rounded-lg border border-purple-200 dark:border-purple-800">
-              <p className="text-sm text-purple-600 dark:text-purple-400 font-semibold mb-2">
-                Meeting Hours
-              </p>
-              <p className="text-2xl font-bold text-purple-900 dark:text-purple-100">
-                {employee.meeting_hours_7d}h
-              </p>
-              <p className="text-xs text-purple-600 dark:text-purple-400 mt-1">
-                this week
-              </p>
-            </div>
-
-            <div className="p-4 bg-green-50 dark:bg-green-950 rounded-lg border border-green-200 dark:border-green-800">
-              <p className="text-sm text-green-600 dark:text-green-400 font-semibold mb-2">
-                Task Hours
-              </p>
-              <p className="text-2xl font-bold text-green-900 dark:text-green-100">
-                {employee.task_hours_7d}h
-              </p>
-              <p className="text-xs text-green-600 dark:text-green-400 mt-1">
-                this week
-              </p>
-            </div>
-          </div>
-
-          {/* Utilization */}
-          <div className="mb-8">
-            <div className="flex items-center justify-between mb-2">
-              <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">
-                Weekly Utilization
-              </p>
-              <p className="text-sm font-bold text-gray-900 dark:text-gray-100">
-                {utilizationRate}%
-              </p>
-            </div>
-            <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3">
+            <div className="w-full bg-[#2D2A26]/10 border border-[#2D2A26] h-4 rounded-none overflow-hidden p-0.5">
               <div
-                className={`h-3 rounded-full transition-all ${
-                  Number(utilizationRate) > 90
-                    ? "bg-red-500"
-                    : Number(utilizationRate) > 75
-                      ? "bg-yellow-500"
-                      : "bg-green-500"
+                className={`h-full transition-all duration-1000 ${
+                  Number(utilizationRate) > 90 ? "bg-red-500" : Number(utilizationRate) > 75 ? "bg-[#ffbb00]" : "bg-[#86efac]"
                 }`}
                 style={{ width: `${Math.min(Number(utilizationRate), 100)}%` }}
               />
             </div>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-              {Number(utilizationRate) > 100
-                ? "Over capacity - consider reassigning tasks"
-                : Number(utilizationRate) > 75
-                  ? "High utilization - limited availability"
-                  : "Good availability for new work"}
-            </p>
           </div>
         </div>
 
         {/* Skills Section */}
-        <div className="bg-white dark:bg-gray-900 rounded-lg shadow-sm border border-gray-200 dark:border-gray-800 p-6">
-          <div className="flex items-center gap-2 mb-4">
-            <Code2 size={20} className="text-gray-700 dark:text-gray-300" />
-            <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100">
-              Skills
-            </h3>
+        <div className="paper-texture bg-white border-2 border-[#2D2A26] p-8 shadow-brutal">
+          <div className="flex items-center gap-3 mb-6">
+            <Code2 size={20} />
+            <h3 className="text-xl font-black uppercase tracking-tight italic">Skill Matrix</h3>
           </div>
-          <div className="flex flex-wrap gap-2">
-            {employee.skills.map((skill) => (
-              <span
-                key={skill}
-                className="px-3 py-1.5 bg-blue-100 dark:bg-blue-950 text-blue-800 dark:text-blue-200 rounded-full text-sm font-medium border border-blue-200 dark:border-blue-800"
-              >
+          <div className="flex flex-wrap gap-3">
+            {employee.skills?.map((skill) => (
+              <span key={skill} className="px-4 py-2 bg-[#f5f2e8] border-2 border-[#2D2A26] text-[10px] font-black uppercase tracking-widest shadow-brutal-sm">
                 {skill}
               </span>
             ))}

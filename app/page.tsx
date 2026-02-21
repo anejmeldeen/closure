@@ -1,87 +1,166 @@
 "use client";
 
-import { useState, useEffect, MouseEvent, Suspense } from "react";
+import { useState, useEffect, MouseEvent, Suspense, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "@/utils/supabase";
 import { 
   Users, LayoutDashboard, MessageSquare, Lock, Zap, LogOut, 
-  Calendar, X, Settings, Plus, FileText, Trash2, Clock, SquarePen, Search 
+  Calendar, X, Settings, Plus, FileText, Trash2, Clock, SquarePen, Search, ExternalLink, Check, Send, UserPlus 
 } from "lucide-react";
 
 import { PremiumPaymentFlow } from "./premium-payment";
 import AvailabilityCalendar from "@/components/AvailabilityCalendar";
 import Loader from "@/app/board/[id]/components/Loader";
-import EmployeeCard from "@/components/EmployeeCard";
-import { mockEmployees, employeeStatuses } from "@/lib/employees";
+import Image from "next/image";
+import type { Profile } from "@/types/index";
 
 // --- TYPES ---
-interface Drawing {
-  id: string;
-  user_id: string;
-  name: string;
-  completed: boolean;
-  last_modified: string;
-  created_at: string;
-}
-
-interface SupabaseUser {
-  id: string;
-  email?: string;
-}
-
+interface Drawing { id: string; user_id: string; name: string; completed: boolean; last_modified: string; created_at: string; }
+interface ChatRoom { id: string; name: string; type: string; }
+interface ChatMessage { id: string; room_id: string; sender_id: string; content: string; created_at: string; profiles?: { full_name: string; avatar_url: string }; }
 type TabType = "staff" | "whiteboard" | "messaging";
 
 function DashboardContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Instant Tab State
-  const [activeTab, setActiveTab] = useState<TabType>(
-    (searchParams.get("tab") as TabType) || "staff"
-  );
-
-  // App States
+  // App State
+  const [activeTab, setActiveTab] = useState<TabType>((searchParams.get("tab") as TabType) || "staff");
   const [isPremium, setIsPremium] = useState<boolean>(false);
   const [showPremiumModal, setShowPremiumModal] = useState<boolean>(false);
   const [isCalendarOpen, setIsCalendarOpen] = useState<boolean>(false);
-  const [user, setUser] = useState<SupabaseUser | null>(null);
+  const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState<boolean>(true);
-
-  // Whiteboard Logic
+  
+  // Data States
   const [drawings, setDrawings] = useState<Drawing[]>([]);
-  const [editName, setEditName] = useState<string>('');
+  const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [rooms, setRooms] = useState<ChatRoom[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [roomMembers, setRoomMembers] = useState<Profile[]>([]); 
+  const [selectedRoom, setSelectedRoom] = useState<string | null>(null);
+  const [newMessage, setNewMessage] = useState("");
+
+  // UI / Modal States
+  const [isCreateRoomOpen, setIsCreateRoomOpen] = useState(false);
+  const [isAddUserOpen, setIsAddUserOpen] = useState(false);
+  const [newRoomName, setNewRoomName] = useState("");
+  const [editName, setEditName] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     const init = async () => {
       const premium = localStorage.getItem("capacity_premium") === "true";
       setIsPremium(premium);
+
       const { data: { user: authUser } } = await supabase.auth.getUser();
       if (!authUser) { router.push('/login'); return; }
       setUser(authUser);
-      const { data, error } = await supabase.from('drawings').select('*').eq('user_id', authUser.id).order('last_modified', { ascending: false });
-      if (!error && data) setDrawings(data as Drawing[]);
+
+      // RESTORED: Full parallel fetch including member-only rooms
+      const [profRes, drawRes, memberRes] = await Promise.all([
+        supabase.from('profiles').select('*').order('full_name', { ascending: true }),
+        supabase.from('drawings').select('*').eq('user_id', authUser.id).order('last_modified', { ascending: false }),
+        supabase.from('chat_room_members').select('chat_rooms(*)').eq('user_id', authUser.id)
+      ]);
+      
+      if (profRes.data) setProfiles(profRes.data as Profile[]);
+      if (drawRes.data) setDrawings(drawRes.data as Drawing[]);
+      if (memberRes.data) {
+        const joinedRooms = memberRes.data.map(m => m.chat_rooms).filter(Boolean) as ChatRoom[];
+        setRooms(joinedRooms);
+        if (joinedRooms.length > 0) setSelectedRoom(joinedRooms[0].id);
+      }
       setLoading(false);
     };
     init();
   }, [router]);
 
-  // Derived Data
-  const filteredDrawings = drawings.filter(d => d.name.toLowerCase().includes(searchQuery.toLowerCase()));
-  const incompleteDrawings = drawings.filter(d => !d.completed);
-  const recentDrawings = drawings.slice(0, 3);
+  // REAL-TIME CHAT: Robust Subscription & Membership Reading
+  useEffect(() => {
+    if (!selectedRoom) return;
+
+    const fetchChannelData = async () => {
+      const { data: msgs } = await supabase
+        .from('chat_messages')
+        .select('*, profiles(full_name, avatar_url)')
+        .eq('room_id', selectedRoom)
+        .order('created_at', { ascending: true });
+      if (msgs) setMessages(msgs as any[]);
+
+      const { data: members } = await supabase
+        .from('chat_room_members')
+        .select('profiles(*)')
+        .eq('room_id', selectedRoom);
+      if (members) setRoomMembers(members.map(m => m.profiles) as unknown as Profile[]);
+    };
+    fetchChannelData();
+
+    const channel = supabase.channel(`room-${selectedRoom}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages', filter: `room_id=eq.${selectedRoom}` }, async (payload) => {
+        const { data: prof } = await supabase.from('profiles').select('full_name, avatar_url').eq('id', payload.new.sender_id).single();
+        const msgWithProfile = { ...payload.new, profiles: prof } as ChatMessage;
+        setMessages(prev => (prev.find(m => m.id === msgWithProfile.id) ? prev : [...prev, msgWithProfile]));
+      }).subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [selectedRoom]);
+
+  useEffect(() => { if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight; }, [messages]);
 
   const handleTabChange = (tab: TabType) => {
     setActiveTab(tab);
     window.history.replaceState(null, "", `?tab=${tab}`);
   };
 
+  // CHAT HANDLERS
+  const sendMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newMessage.trim() || !selectedRoom || !user) return;
+    const content = newMessage.trim();
+    setNewMessage("");
+
+    const optimisticMsg: ChatMessage = {
+      id: Math.random().toString(),
+      room_id: selectedRoom,
+      sender_id: user.id,
+      content,
+      created_at: new Date().toISOString(),
+      profiles: { full_name: user.user_metadata?.full_name || 'Personnel', avatar_url: '' }
+    };
+    setMessages(prev => [...prev, optimisticMsg]);
+    await supabase.from('chat_messages').insert({ room_id: selectedRoom, sender_id: user.id, content });
+  };
+
+  const handleCreateRoom = async () => {
+    if (!newRoomName.trim()) return;
+    const { data } = await supabase.from('chat_rooms').insert({ name: newRoomName.trim(), type: 'private' }).select().single();
+    if (data) {
+      await supabase.from('chat_room_members').insert({ room_id: data.id, user_id: user.id });
+      setRooms(prev => [...prev, data]);
+      setSelectedRoom(data.id);
+      setIsCreateRoomOpen(false);
+      setNewRoomName("");
+    }
+  };
+
+  const addUserToRoom = async (profileId: string) => {
+    if (!selectedRoom) return;
+    const { error } = await supabase.from('chat_room_members').insert({ room_id: selectedRoom, user_id: profileId });
+    if (!error) {
+      const addedProfile = profiles.find(p => p.id === profileId);
+      if (addedProfile) setRoomMembers(prev => [...prev, addedProfile]);
+    }
+  };
+
+  // WHITEBOARD HANDLERS
   const createNewDrawing = async () => {
     if (!user) return;
-    const { data } = await supabase.from('drawings').insert({ user_id: user.id, name: 'Untitled Project' }).select().single();
+    const { data } = await supabase.from('drawings').insert({ user_id: user.id, name: 'UNTITLED_PROJECT' }).select().single();
     if (data) router.push(`/board/${data.id}?tab=whiteboard`);
   };
 
@@ -91,7 +170,7 @@ function DashboardContent() {
     setDrawings(prev => prev.filter(d => d.id !== deleteTargetId));
     setDeleteTargetId(null);
     const { error } = await supabase.from('drawings').delete().eq('id', deleteTargetId);
-    if (error) { alert("Delete failed"); setDrawings(original); }
+    if (error) { alert("Action denied"); setDrawings(original); }
   };
 
   const saveRename = async () => {
@@ -109,25 +188,22 @@ function DashboardContent() {
     await supabase.from('drawings').update({ completed: newStatus }).eq('id', id);
   };
 
+  const filteredDrawings = drawings.filter(d => d.name.toLowerCase().includes(searchQuery.toLowerCase()));
+  const incompleteDrawings = drawings.filter(d => !d.completed);
+  const addablePersonnel = profiles.filter(p => !roomMembers.some(m => m.id === p.id));
+
   if (loading) return <Loader />;
 
   return (
     <div className="min-h-screen cork-texture flex flex-col font-sans text-[#2D2A26]">
       
-      {/* 1. TOP NAV (Now with Paper Texture) */}
+      {/* 1. TOP NAV */}
       <nav className="paper-texture bg-[#f5f2e8] border-b-2 border-[#2D2A26] px-8 py-4 flex items-center justify-between sticky top-0 z-40 shadow-md">
         <div className="flex items-center gap-12">
-          <h1 className="text-2xl font-black tracking-tighter">CAPACITY</h1>
-          
-          <div className="flex gap-2">
+          <h1 className="text-2xl font-black uppercase tracking-tighter">Capacity</h1>
+          <div className="flex gap-1">
             {(["staff", "whiteboard", "messaging"] as const).map((t) => (
-              <button 
-                key={t} 
-                onClick={() => handleTabChange(t)} 
-                className={`flex items-center gap-2 px-5 py-2 rounded-md font-bold text-xs uppercase tracking-wider transition-all ${
-                  activeTab === t ? "bg-[#2D2A26] text-white shadow-brutal -translate-y-0.5" : "text-gray-500 hover:bg-white/50 hover:text-[#2D2A26]"
-                }`}
-              >
+              <button key={t} onClick={() => handleTabChange(t)} className={`flex items-center gap-2 px-5 py-2 rounded-md font-bold text-[11px] uppercase tracking-wider transition-all ${activeTab === t ? "bg-[#2D2A26] text-white shadow-brutal -translate-y-0.5" : "text-gray-500 hover:bg-white/50 hover:text-[#2D2A26]"}`}>
                 {t === "staff" && <Users size={16} />}
                 {t === "whiteboard" && <LayoutDashboard size={16} />}
                 {t === "messaging" && <MessageSquare size={16} />}
@@ -136,152 +212,124 @@ function DashboardContent() {
             ))}
           </div>
         </div>
-
         <div className="flex items-center gap-6">
-          <Link href="/settings" className="p-2 hover:bg-white/50 rounded-full border border-transparent hover:border-[#2D2A26] transition-all"><Settings size={20} /></Link>
-          <button 
-            onClick={() => setShowPremiumModal(true)} 
-            className={`px-6 py-2 border-2 border-[#2D2A26] font-bold text-[10px] uppercase tracking-widest shadow-brutal hover:shadow-none hover:translate-x-0.5 hover:translate-y-0.5 transition-all ${isPremium ? "bg-[#86efac]" : "bg-[#ffbb00]"}`}
-          >
-            {isPremium ? "Premium" : "Upgrade"}
-          </button>
-          <button onClick={async () => { await supabase.auth.signOut(); router.push("/login"); }} className="font-bold text-[10px] uppercase tracking-widest opacity-50 hover:opacity-100">
-            Log Out
-          </button>
+          <button onClick={() => setShowPremiumModal(true)} className={`px-6 py-2 border-2 border-[#2D2A26] font-bold text-[10px] uppercase shadow-brutal transition-all ${isPremium ? "bg-[#86efac]" : "bg-[#ffbb00]"}`}>{isPremium ? "Premium" : "Upgrade"}</button>
+          <button onClick={async () => { await supabase.auth.signOut(); router.push("/login"); }} className="font-bold text-[10px] uppercase tracking-widest opacity-50 hover:opacity-100">Log Out</button>
         </div>
       </nav>
 
-      {/* 2. MAIN CONTENT AREA (Corkboard Background) */}
-      <main className="flex-1 p-8 md:p-12 max-w-[1600px] mx-auto w-full flex flex-col lg:flex-row gap-12 relative">
+      {/* 2. MAIN CONTENT */}
+      <main className={`flex-1 p-8 md:p-12 mx-auto w-full flex flex-col lg:flex-row gap-12 relative max-w-[1600px]`}>
         
-        {/* SIDEBAR (Pinned Notes Look - NO TILT) */}
-        <aside className="w-full lg:w-72 flex flex-col gap-10 shrink-0 z-10">
-          <div className="relative group paper-texture shadow-brutal-sm">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-            <input 
-              type="text" 
-              placeholder="SEARCH..." 
-              value={searchQuery} 
-              onChange={(e) => setSearchQuery(e.target.value)} 
-              className="w-full pl-10 pr-4 py-3 bg-[#f5f2e8] border-2 border-[#2D2A26] font-bold text-[10px] focus:outline-none placeholder:opacity-30"
-            />
-          </div>
+        {/* SIDEBAR: HIDDEN ONLY ON STAFF */}
+        {activeTab !== "staff" && (
+          <aside className="w-full lg:w-72 flex flex-col gap-10 shrink-0 z-10 animate-in slide-in-from-left-4 duration-300">
+  {activeTab === "whiteboard" ? (
+    /* --- WHITEBOARD SIDEBAR --- */
+    <div className="space-y-6">
+      <div className="relative paper-texture shadow-brutal-sm">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+        <input type="text" placeholder="SEARCH PROJECTS..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full pl-10 pr-4 py-3 bg-[#f5f2e8] border-2 border-[#2D2A26] font-bold text-[10px] focus:outline-none" />
+      </div>
+      
+      {/* RESTORED: Recent Boards */}
+      <div className="paper-texture p-6 border-2 border-[#2D2A26] shadow-brutal">
+        <h3 className="font-black text-[10px] uppercase mb-4 text-gray-400 tracking-widest flex items-center gap-2"><Clock size={14} /> Recent Boards</h3>
+        <ul className="space-y-4">
+          {drawings.slice(0, 3).map(d => (
+            <li key={d.id} onClick={() => router.push(`/board/${d.id}?tab=whiteboard`)} className="text-[13px] font-bold hover:text-[#D97757] cursor-pointer truncate flex items-center gap-2">
+              <FileText size={12} className="opacity-30" /> {d.name}
+            </li>
+          ))}
+        </ul>
+      </div>
 
-          <div className="space-y-8">
-            <div className="paper-texture p-6 border-2 border-[#2D2A26] shadow-brutal">
-              <h3 className="font-black text-[10px] uppercase tracking-[0.2em] mb-4 flex items-center gap-2"><Clock size={14} /> Recent</h3>
-              <ul className="space-y-3">
-                {recentDrawings.map(d => (
-                  <li key={d.id} onClick={() => router.push(`/board/${d.id}?tab=whiteboard`)} className="text-sm font-bold hover:text-[#D97757] cursor-pointer truncate flex items-center gap-2">
-                    <FileText size={14} className="opacity-30" /> {d.name}
-                  </li>
-                ))}
-              </ul>
-            </div>
+      {/* RESTORED: Open Tasks */}
+      <div className="paper-texture p-6 border-2 border-[#2D2A26] shadow-brutal">
+        <h3 className="font-black text-[10px] uppercase mb-4 text-gray-400 tracking-widest flex items-center gap-2"><SquarePen size={14} /> Open Tasks</h3>
+        <ul className="space-y-4">
+          {incompleteDrawings.slice(0, 5).map(d => (
+            <li key={d.id} onClick={() => router.push(`/board/${d.id}?tab=whiteboard`)} className="text-[13px] font-bold hover:text-[#D97757] cursor-pointer truncate flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-[#ffbb00]"></div> {d.name}
+            </li>
+          ))}
+        </ul>
+      </div>
+    </div>
+  ) : (
+    /* --- MESSAGING SIDEBAR --- */
+    <div className="space-y-6 flex-1 flex flex-col min-h-0">
+      <div className="paper-texture p-6 border-2 border-[#2D2A26] bg-[#f5f2e8] shadow-brutal flex-1 overflow-y-auto min-h-[300px]">
+        <div className="flex justify-between items-center mb-6">
+          <h3 className="font-black text-[10px] uppercase text-gray-400">Channels</h3>
+          <button onClick={() => setIsCreateRoomOpen(true)} className="p-1 border-2 border-[#2D2A26] shadow-brutal-sm bg-white hover:translate-y-0.5 transition-all"><Plus size={12} /></button>
+        </div>
+        <ul className="space-y-2">
+          {rooms.map(room => (
+            <li key={room.id} onClick={() => setSelectedRoom(room.id)} className={`p-3 border-2 border-[#2D2A26] font-bold text-xs uppercase cursor-pointer transition-all ${selectedRoom === room.id ? 'bg-[#2D2A26] text-white shadow-none translate-x-1 translate-y-1' : 'bg-white shadow-brutal-sm hover:bg-gray-50'}`}># {room.name}</li>
+          ))}
+        </ul>
+      </div>
 
-            <div className="paper-texture p-6 border-2 border-[#2D2A26] shadow-brutal">
-              <h3 className="font-black text-[10px] uppercase tracking-[0.2em] mb-4 flex items-center gap-2"><SquarePen size={14} /> Tasks</h3>
-              <ul className="space-y-3">
-                {incompleteDrawings.map(d => (
-                  <li key={d.id} onClick={() => router.push(`/board/${d.id}?tab=whiteboard`)} className="text-sm font-bold hover:text-[#D97757] cursor-pointer truncate flex items-center gap-2">
-                    <FileText size={14} className="opacity-30" /> {d.name}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </div>
-        </aside>
+      {/* Member List with Faces */}
+      <div className="paper-texture p-6 border-2 border-[#2D2A26] bg-[#f5f2e8] shadow-brutal h-1/3 overflow-y-auto">
+        <h3 className="font-black text-[10px] uppercase text-gray-400 mb-6 tracking-widest">In Room</h3>
+        <ul className="space-y-3">
+          {roomMembers.map(m => (
+            <li key={m.id} className="flex items-center gap-3">
+              <Image src={m.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${m.id}`} alt="" width={24} height={24} unoptimized className="rounded-full border border-[#2D2A26] bg-white" />
+              <span className="font-bold text-[11px] uppercase truncate">{m.full_name}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </div>
+  )}
+</aside>
+        )}
 
-        {/* MAIN PANEL */}
         <section className="flex-1 min-w-0 z-10">
-          
-          {/* STAFF TAB */}
+          {/* TAB: STAFF */}
           {activeTab === "staff" && (
-            <div className="animate-in fade-in duration-300">
-              <div className="flex justify-between items-end mb-8">
-                <h2 className="text-4xl font-black uppercase tracking-tighter italic">Team Coverage</h2>
-                <button onClick={() => setIsCalendarOpen(true)} className="px-6 py-3 border-2 border-[#2D2A26] bg-[#f5f2e8] font-bold text-[10px] uppercase shadow-brutal hover:shadow-none hover:translate-x-0.5 hover:translate-y-0.5 transition-all">
-                  View Schedule
-                </button>
+            <div className="animate-in fade-in duration-300 max-w-[1200px] mx-auto">
+              <div className="flex justify-between items-end mb-10 border-b-4 border-[#2D2A26] pb-6">
+                <h2 className="text-4xl font-black uppercase tracking-tighter italic">Personnel Registry</h2>
+                <button onClick={() => setIsCalendarOpen(true)} className="px-6 py-3 border-2 border-[#2D2A26] bg-[#f5f2e8] font-bold text-[10px] uppercase shadow-brutal flex items-center gap-2"><Calendar size={14} /> Schedules</button>
               </div>
-
-              <div className="grid grid-cols-1 gap-6">
-                  <ul className="space-y-3">
-                {Object.entries(mockEmployees).map(([employeeId, employee]) => {
-                  const statusInfo = employeeStatuses[employeeId] || {
-                    status: "Offline",
-                    statusColor: "gray" as const,
-                    isInactive: false,
-                  };
-                  return (
-                    <EmployeeCard
-                      key={employeeId}
-                      id={employeeId}
-                      name={employee.full_name}
-                      role={employee.role}
-                      status={statusInfo.status}
-                      statusColor={statusInfo.statusColor}
-                      isInactive={statusInfo.isInactive}
-                    />
-                  );
-                })}
-              </ul>
-
-                <div className={`paper-texture mt-8 p-10 border-2 border-[#2D2A26] shadow-brutal-lg ${isPremium ? 'bg-white' : 'bg-[#ffbb00]'}`}>
-                  <div className="flex flex-col md:flex-row justify-between items-center gap-8">
-                    <div className="flex items-center gap-6">
-                      <div className="w-14 h-14 bg-[#2D2A26] text-white flex items-center justify-center border-2 border-[#2D2A26] shadow-brutal">
-                        {isPremium ? <Zap size={28} /> : <Lock size={28} />}
-                      </div>
-                      <div>
-                        <h3 className="text-2xl font-black uppercase italic tracking-tight">Analytics Dashboard</h3>
-                        <p className="text-xs font-bold uppercase opacity-60">Real-time team performance metrics</p>
-                      </div>
-                    </div>
-                    {isPremium ? (
-                      <div className="flex gap-10">
-                        <div className="text-center"><p className="text-3xl font-black tracking-tighter">92%</p><p className="text-[10px] font-bold opacity-40 uppercase">Availability</p></div>
-                        <div className="text-center"><p className="text-3xl font-black tracking-tighter">7.5h</p><p className="text-[10px] font-bold opacity-40 uppercase">Load Avg</p></div>
-                      </div>
-                    ) : (
-                      <button onClick={() => setShowPremiumModal(true)} className="px-8 py-3 bg-[#2D2A26] text-white font-black text-[10px] uppercase shadow-brutal hover:shadow-none hover:translate-x-1 hover:translate-y-1 transition-all">Upgrade Now</button>
-                    )}
-                  </div>
-                </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {profiles.map((p) => (
+                  <Link key={p.id} href={`/employee/${p.id}`} className="paper-texture bg-[#f5f2e8] border-2 border-[#2D2A26] p-6 shadow-brutal flex items-center gap-6 group hover:translate-x-1 hover:translate-y-1">
+                    <Image src={p.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${p.id}`} alt="" width={64} height={64} unoptimized className="bg-white border-2 border-[#2D2A26] shadow-brutal-sm rounded-sm" />
+                    <div className="flex-1 min-w-0"><p className="font-black text-xl uppercase truncate group-hover:text-[#D97757] transition-colors">{p.full_name}</p><p className="font-mono text-[10px] font-bold opacity-40 uppercase truncate">{p.role}</p></div>
+                  </Link>
+                ))}
               </div>
             </div>
           )}
 
-          {/* WHITEBOARD TAB */}
+          {/* TAB: WHITEBOARD */}
           {activeTab === "whiteboard" && (
             <div className="animate-in fade-in duration-300">
-              <h2 className="text-4xl font-black uppercase tracking-tighter italic mb-8">Project Boards</h2>
+              <h2 className="text-4xl font-black uppercase tracking-tighter italic mb-8">Mission Boards</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-10">
-                <button onClick={createNewDrawing} className="h-64 border-2 border-dashed border-[#2D2A26]/30 bg-[#f5f2e8]/40 paper-texture flex flex-col items-center justify-center gap-4 hover:border-[#2D2A26] hover:bg-[#f5f2e8] transition-all group">
-                  <Plus size={32} className="text-gray-300 group-hover:text-[#2D2A26] transition-colors" />
-                  <span className="font-black text-[10px] uppercase tracking-widest opacity-40 group-hover:opacity-100">Add Project</span>
+                <button onClick={createNewDrawing} className="h-64 border-2 border-dashed border-[#2D2A26]/30 bg-[#f5f2e8]/40 paper-texture flex flex-col items-center justify-center gap-4 hover:border-[#2D2A26] hover:bg-[#f5f2e8] transition-all group shadow-sm">
+                  <Plus size={32} className="text-gray-300 group-hover:text-[#2D2A26] transition-colors" /><span className="font-black text-[10px] uppercase tracking-widest opacity-40 group-hover:opacity-100">New Board</span>
                 </button>
-
                 {filteredDrawings.map((draw) => (
-                  <div key={draw.id} onClick={() => editingId !== draw.id && router.push(`/board/${draw.id}?tab=whiteboard`)} className="group paper-texture h-64 bg-[#f5f2e8] border-2 border-[#2D2A26] p-8 shadow-brutal-lg hover:shadow-none hover:translate-x-1.5 hover:translate-y-1.5 transition-all cursor-pointer flex flex-col justify-between relative">
-                    {/* Brand mark */}
+                  <div key={draw.id} onClick={() => editingId !== draw.id && router.push(`/board/${draw.id}?tab=whiteboard`)} className={`group paper-texture h-64 border-2 border-[#2D2A26] p-8 shadow-brutal-lg hover:shadow-none hover:translate-x-1.5 hover:translate-y-1.5 transition-all cursor-pointer flex flex-col justify-between relative ${draw.completed ? 'bg-[#e5e7eb] opacity-80' : 'bg-[#f5f2e8]'}`}>
                     <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-10 h-3 bg-[#ffbb00] opacity-80 border border-[#2D2A26]/10"></div>
-                    
+                    {draw.completed && <div className="absolute inset-0 flex items-center justify-center pointer-events-none overflow-hidden"><div className="border-4 border-green-600 text-green-600 font-black text-2xl uppercase p-2 rotate-[-15deg] opacity-40 tracking-widest">COMPLETE</div></div>}
                     <div className="flex justify-between items-start">
                       <span className="bg-[#2D2A26] text-white px-2 py-0.5 font-mono text-[9px] font-bold tracking-tighter">{new Date(draw.last_modified).toLocaleDateString()}</span>
-                      <button onClick={(e) => toggleStatus(e, draw.id, draw.completed)} className={`w-5 h-5 border-2 border-[#2D2A26] flex items-center justify-center transition-colors ${draw.completed ? 'bg-[#86efac]' : 'bg-[#ffbb00]'}`}>
-                        {draw.completed && <X size={12} strokeWidth={4} />}
-                      </button>
+                      <button onClick={(e) => toggleStatus(e, draw.id, draw.completed)} className={`w-6 h-6 border-2 border-[#2D2A26] flex items-center justify-center transition-all ${draw.completed ? 'bg-[#86efac]' : 'bg-white shadow-brutal-sm hover:translate-y-0.5'}`}>{draw.completed && <Check size={16} strokeWidth={4} />}</button>
                     </div>
-
                     <div className="flex-1 mt-6">
                       {editingId === draw.id ? (
                         <input autoFocus className="bg-transparent border-b-4 border-[#2D2A26] text-2xl font-black outline-none uppercase w-full tracking-tighter" value={editName} onChange={(e) => setEditName(e.target.value)} onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.key === 'Enter' && saveRename()} onBlur={saveRename} />
                       ) : (
-                        <h3 className="text-2xl font-black leading-none group-hover:text-[#D97757] transition-colors line-clamp-2 uppercase tracking-tighter">{draw.name}</h3>
+                        <h3 className={`text-2xl font-black leading-none group-hover:text-[#D97757] transition-colors line-clamp-2 uppercase tracking-tighter ${draw.completed ? 'line-through opacity-40' : ''}`}>{draw.name}</h3>
                       )}
                     </div>
-                    
                     <div className="flex items-center justify-end gap-3 opacity-0 group-hover:opacity-100 transition-all pt-4 border-t-2 border-[#2D2A26]/10">
                       <button onClick={(e) => { e.stopPropagation(); setEditingId(draw.id); setEditName(draw.name); }} className="text-[10px] font-black uppercase underline decoration-2 underline-offset-2">Rename</button>
                       <button onClick={(e) => { e.stopPropagation(); setDeleteTargetId(draw.id); }} className="text-[#2D2A26] hover:text-red-600 transition-colors"><Trash2 size={20} /></button>
@@ -292,43 +340,97 @@ function DashboardContent() {
             </div>
           )}
 
-          {/* MESSAGING TAB */}
+          {/* TAB: MESSAGING */}
           {activeTab === "messaging" && (
-             <div className="animate-in fade-in duration-300">
-               <h2 className="text-4xl font-black uppercase tracking-tighter italic mb-8">Team Chat</h2>
-               <div className="h-[600px] paper-texture border-4 border-[#2D2A26] shadow-brutal-lg flex items-center justify-center">
-                 <p className="font-black text-[12px] uppercase tracking-[0.3em] opacity-20">Secure Channel Offline</p>
-               </div>
-             </div>
+            <div className="h-[750px] flex flex-col paper-texture border-4 border-[#2D2A26] bg-[#f5f2e8] shadow-brutal-lg overflow-hidden animate-in fade-in duration-300">
+              <div className="p-6 border-b-2 border-[#2D2A26] bg-white flex justify-between items-center">
+                <h3 className="text-xl font-black uppercase italic tracking-tight"># {rooms.find(r => r.id === selectedRoom)?.name || 'Personnel Link'}</h3>
+                <button onClick={() => setIsAddUserOpen(true)} className="flex items-center gap-2 px-4 py-2 border-2 border-[#2D2A26] font-black text-[10px] uppercase shadow-brutal-sm hover:shadow-none hover:translate-x-0.5 transition-all bg-[#86efac]"><UserPlus size={14} /> Add User</button>
+              </div>
+              <div ref={scrollRef} className="flex-1 overflow-y-auto p-8 space-y-6">
+                {messages.map(msg => (
+                  <div key={msg.id} className={`flex items-start gap-4 ${msg.sender_id === user?.id ? 'flex-row-reverse' : ''}`}>
+                    <Image src={msg.profiles?.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${msg.sender_id}`} alt="" width={40} height={40} unoptimized className="bg-white border-2 border-[#2D2A26] shadow-brutal-sm rounded-sm shrink-0" />
+                    <div className={`max-w-[70%] p-4 border-2 border-[#2D2A26] shadow-brutal-sm ${msg.sender_id === user?.id ? 'bg-[#ffbb00]' : 'bg-white'}`}>
+                      <p className="text-[9px] font-black uppercase opacity-40 mb-1">{msg.profiles?.full_name} • {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                      <p className="font-bold text-sm leading-relaxed">{msg.content}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <form onSubmit={sendMessage} className="p-6 border-t-2 border-[#2D2A26] bg-white flex gap-4">
+                <input type="text" value={newMessage} onChange={(e) => setNewMessage(e.target.value)} placeholder="ENCRYPTED TRANSMISSION..." className="flex-1 px-4 py-3 bg-[#f5f2e8] border-2 border-[#2D2A26] font-bold text-xs focus:outline-none" />
+                <button type="submit" className="px-6 py-3 bg-[#2D2A26] text-white shadow-brutal hover:shadow-none hover:translate-x-1 hover:translate-y-1 transition-all"><Send size={16} /></button>
+              </form>
+            </div>
           )}
         </section>
       </main>
 
-      {/* 3. CALENDAR DRAWER (The Side Panel) */}
-      {isCalendarOpen && (
-        <>
-          <div className="fixed inset-0 bg-black/60 z-40 backdrop-blur-sm transition-opacity" onClick={() => setIsCalendarOpen(false)} />
-          <div className={`fixed top-0 right-0 h-full w-full max-w-[550px] bg-[#f5f2e8] border-l-4 border-[#2D2A26] shadow-2xl z-50 transform transition-transform duration-300 ease-in-out ${isCalendarOpen ? 'translate-x-0' : 'translate-x-full'}`}>
-            <div className="p-12 flex flex-col h-full overflow-y-auto">
-              <div className="flex justify-between items-center mb-12 border-b-4 border-[#2D2A26] pb-8">
-                <h2 className="text-3xl font-black uppercase italic flex items-center gap-3"><Calendar size={28} /> Schedules</h2>
-                <button onClick={() => setIsCalendarOpen(false)} className="p-3 border-2 border-[#2D2A26] shadow-brutal hover:shadow-none hover:translate-x-0.5 hover:translate-y-0.5 transition-all"><X size={24} /></button>
-              </div>
-              <AvailabilityCalendar employeeIds={user ? [user.id] : []} />
-            </div>
+      {/* MODALS */}
+      {isCreateRoomOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4">
+          <div className="paper-texture bg-[#f5f2e8] border-4 border-[#2D2A26] p-10 max-w-md w-full shadow-brutal-lg">
+            <h2 className="text-2xl font-black uppercase italic mb-6">Create Channel</h2>
+            <input autoFocus value={newRoomName} onChange={(e) => setNewRoomName(e.target.value)} className="w-full p-4 border-2 border-[#2D2A26] mb-8 font-bold" placeholder="CHANNEL_NAME" />
+            <div className="flex gap-4"><button onClick={() => setIsCreateRoomOpen(false)} className="flex-1 py-4 border-2 border-[#2D2A26] font-black uppercase text-xs">Cancel</button><button onClick={handleCreateRoom} className="flex-1 py-4 bg-[#2D2A26] text-white border-2 border-[#2D2A26] font-black uppercase text-xs shadow-brutal hover:translate-y-1">Create</button></div>
           </div>
-        </>
+        </div>
       )}
 
-      {/* 4. DELETE MODAL (No Tilt) */}
+      {isAddUserOpen && (
+  <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4">
+    <div className="paper-texture bg-[#f5f2e8] border-4 border-[#2D2A26] p-10 max-w-md w-full shadow-brutal-lg">
+      <h2 className="text-2xl font-black uppercase italic mb-6 tracking-tighter">Add Personnel</h2>
+      
+      {/* Scrollable Container with Faces */}
+      <div className="max-h-[300px] overflow-y-auto mb-8 pr-2 border-2 border-[#2D2A26]/10 p-2 custom-scrollbar">
+        <ul className="space-y-3">
+          {addablePersonnel.map(p => (
+            <li key={p.id} className="flex justify-between items-center p-3 border-2 border-[#2D2A26] bg-white shadow-brutal-sm">
+              <div className="flex items-center gap-3">
+                <Image 
+                  src={p.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${p.id}`} 
+                  alt="" 
+                  width={32} 
+                  height={32} 
+                  unoptimized 
+                  className="rounded-full border border-[#2D2A26] bg-white" 
+                />
+                <span className="font-bold text-[11px] uppercase truncate max-w-[150px]">{p.full_name}</span>
+              </div>
+              <button 
+                onClick={() => addUserToRoom(p.id)} 
+                className="text-[9px] font-black uppercase bg-[#2D2A26] text-white px-3 py-1 shadow-brutal-sm hover:translate-y-0.5 transition-all"
+              >
+                Add
+              </button>
+            </li>
+          ))}
+          {addablePersonnel.length === 0 && (
+            <p className="text-[10px] font-black uppercase opacity-40 text-center py-4">All Personnel Active</p>
+          )}
+        </ul>
+      </div>
+      
+      <button 
+        onClick={() => setIsAddUserOpen(false)} 
+        className="w-full py-4 border-2 border-[#2D2A26] font-black uppercase text-xs hover:bg-[#2D2A26] hover:text-white transition-all"
+      >
+        Close Registry
+      </button>
+    </div>
+  </div>
+)}
+
       {deleteTargetId && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-md p-4">
           <div className="paper-texture bg-[#f5f2e8] border-4 border-[#2D2A26] p-12 max-w-md w-full shadow-brutal-lg">
-            <h2 className="text-3xl font-black mb-4 uppercase italic">Delete Board?</h2>
-            <p className="font-bold text-xs mb-10 uppercase opacity-60 tracking-widest">This operation is irreversible.</p>
+            <h2 className="text-3xl font-black mb-4 uppercase italic text-[#2D2A26]">Archive Board?</h2>
+            <p className="font-bold text-xs mb-10 uppercase opacity-60 tracking-widest text-[#2D2A26]">Critical Action - Cannot be undone.</p>
             <div className="flex gap-4">
-              <button onClick={() => setDeleteTargetId(null)} className="flex-1 py-4 border-2 border-[#2D2A26] font-black uppercase text-xs">Cancel</button>
-              <button onClick={executeDelete} className="flex-1 py-4 bg-red-600 text-white border-2 border-[#2D2A26] font-black uppercase text-xs shadow-brutal hover:shadow-none hover:translate-x-1 hover:translate-y-1 transition-all">Delete</button>
+              <button onClick={() => setDeleteTargetId(null)} className="flex-1 py-4 border-2 border-[#2D2A26] font-black uppercase text-xs text-[#2D2A26]">Cancel</button>
+              <button onClick={executeDelete} className="flex-1 py-4 bg-red-600 text-white border-2 border-[#2D2A26] font-black uppercase text-xs shadow-brutal hover:shadow-none hover:translate-x-1 transition-all">Delete</button>
             </div>
           </div>
         </div>
@@ -338,7 +440,5 @@ function DashboardContent() {
 }
 
 export default function Home() {
-  return (
-    <Suspense fallback={<Loader />}><DashboardContent /></Suspense>
-  );
+  return ( <Suspense fallback={<Loader />}><DashboardContent /></Suspense> );
 }
