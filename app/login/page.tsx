@@ -136,7 +136,7 @@ export default function Login() {
 
         <div className="mb-12 text-center mt-2">
           <h1 className="text-5xl font-black text-[#2D2A26] tracking-tighter uppercase">
-            Capacity
+            Closure
           </h1>
           <p className="text-[#2D2A26]/60 text-sm mt-4 font-bold uppercase tracking-widest">
             {isSignUp ? 'Create Workspace Account' : 'Sign In to Workspace'}

@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
         'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
         'Content-Type': 'application/json',
         'HTTP-Referer': process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000',
-        'X-Title': 'Capacity HQ',
+        'X-Title': 'Closure HQ',
       },
       body: JSON.stringify({
         model: 'google/gemini-3-pro-image-preview',
