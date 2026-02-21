@@ -1,6 +1,6 @@
 "use client";
 
-import { Users, LayoutDashboard, MessageSquare } from "lucide-react";
+import { Users, LayoutDashboard, MessageSquare, Lock, Zap } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/utils/supabase";
 import { useState, useEffect } from "react";
@@ -10,12 +10,56 @@ export default function Home() {
   const [activeTab, setActiveTab] = useState<
     "staff" | "whiteboard" | "messaging"
   >("staff");
+  const [isPremium, setIsPremium] = useState(false);
+  const [showPremiumModal, setShowPremiumModal] = useState(false);
+
+  useEffect(() => {
+    // Check if user has premium access
+    const premium = localStorage.getItem("capacity_premium") === "true";
+    setIsPremium(premium);
+  }, []);
+
+  const handlePremiumSuccess = () => {
+    setIsPremium(true);
+    setShowPremiumModal(false);
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col text-gray-900 font-sans">
+      {/* Premium Modal */}
+      {showPremiumModal && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-[95vw] max-h-[90vh] overflow-y-auto border border-gray-100">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-10 h-10 bg-linear-to-br from-cyan-500 to-teal-600 rounded-lg flex items-center justify-center">
+                <Lock size={20} className="text-white" />
+              </div>
+              <h3 className="text-2xl font-bold bg-linear-to-r from-cyan-600 to-teal-700 bg-clip-text text-transparent">
+                Premium Access
+              </h3>
+            </div>
+            <p className="text-gray-600 mb-6 leading-relaxed">
+              Unlock advanced reassignment logic, team analytics, predictive
+              forecasting, and more.
+            </p>
+
+            <PremiumPaymentFlow
+              onPaymentSuccess={handlePremiumSuccess}
+              isPremium={isPremium}
+            />
+            <button
+              onClick={() => setShowPremiumModal(false)}
+              className="w-full mt-6 px-4 py-3 text-gray-700 font-medium rounded-lg hover:bg-gray-100 transition-colors duration-200"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Simple Top Navigation */}
       <nav className="bg-white border-b border-gray-200 p-4 flex items-center shadow-sm">
-        <h1 className="text-2xl font-bold mr-10 tracking-tight">NAME</h1>
+        <h1 className="text-2xl font-bold mr-10 tracking-tight">Capacity</h1>
 
         <div className="flex gap-2">
           <button
@@ -51,6 +95,26 @@ export default function Home() {
             <MessageSquare size={18} /> Messages
           </button>
         </div>
+
+        {/* Premium Button */}
+        <button
+          onClick={() => setShowPremiumModal(true)}
+          className={`ml-auto flex items-center gap-2 px-5 py-2 rounded-lg font-semibold transition-all duration-200 ${
+            isPremium
+              ? "bg-linear-to-r from-cyan-600 to-cyan-500 text-white shadow-lg shadow-cyan-500/30 hover:shadow-cyan-500/40"
+              : "bg-linear-to-r from-amber-400 to-amber-500 text-white shadow-lg shadow-amber-400/30 hover:shadow-amber-400/40 hover:scale-105"
+          }`}
+        >
+          {isPremium ? (
+            <>
+              <Zap size={18} /> Premium
+            </>
+          ) : (
+            <>
+              <Lock size={18} /> Unlock Premium
+            </>
+          )}
+        </button>
       </nav>
 
       {/* Main Content Area */}
