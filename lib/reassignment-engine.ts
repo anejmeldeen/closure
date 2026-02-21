@@ -1,23 +1,47 @@
 import { Profile, DbTask } from '@/types';
 
-export function calculateBandwidthScore(profile: Profile): number {
-  // Meetings are 20% more draining due to context switching
-  const cognitiveLoad = (profile.meeting_hours_7d * 1.2) + profile.task_hours_7d;
+/**
+ * Calculates a 'Headroom' score where HIGHER = MORE AVAILABLE.
+ * Weights meetings heavier due to context-switching costs.
+ */
+export function calculateFinalAvailability(profile: Profile): number {
+  const meetingWeight = 1.2; 
+  const currentLoad = (profile.meeting_hours_7d * meetingWeight) + profile.task_hours_7d;
   
-  // Calculate availability: (Max Capacity - Current Load) scaled by Performance
-  // Higher score = Better candidate for new work
-  const rawAvailability = profile.max_capacity - cognitiveLoad;
-  return rawAvailability * (profile.performance_rating / 5);
+  // Calculate remaining capacity
+  const headroom = profile.max_capacity - currentLoad;
+  
+  // Factor in the performance rating (1-5) to prioritize high-efficiency users
+  // Score = (Available Hours) * (Performance Multiplier)
+  return headroom * (profile.performance_rating / 5);
 }
 
+/**
+ * Tiered Selection Logic:
+ * 1. Same Team + High Availability
+ * 2. Same Org + High Availability
+ */
 export function findBestBackup(task: DbTask, allProfiles: Profile[]): Profile | null {
-  // 1. Filter for people who have at least one required skill
+  const originalOwner = allProfiles.find(p => p.id === task.assigned_to);
+  
+  // Filter for qualified candidates (Skills match & not the OOO person)
   const qualified = allProfiles.filter(p => 
-    p.skills.some(skill => task.required_skills.includes(skill))
+    p.skills.some(skill => task.required_skills.includes(skill)) &&
+    p.id !== task.assigned_to
   );
 
   if (qualified.length === 0) return null;
 
-  // 2. Sort by Bandwidth Score (Descending - highest score is most available)
-  return qualified.sort((a, b) => calculateBandwidthScore(b) - calculateBandwidthScore(a))[0];
+  // TIER 1: Find best match in the SAME TEAM
+  const teamBackups = qualified.filter(p => p.team_id === originalOwner?.team_id);
+  if (teamBackups.length > 0) {
+    return teamBackups.sort((a, b) => 
+      calculateFinalAvailability(b) - calculateFinalAvailability(a)
+    )[0];
+  }
+
+  // TIER 2: Escalation to the whole Organization
+  return qualified.sort((a, b) => 
+    calculateFinalAvailability(b) - calculateFinalAvailability(a)
+  )[0];
 }
