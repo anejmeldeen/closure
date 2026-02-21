@@ -12,6 +12,8 @@ import {
 import { PremiumPaymentFlow } from "./premium-payment";
 import AvailabilityCalendar from "@/components/AvailabilityCalendar";
 import Loader from "@/app/board/[id]/components/Loader";
+import EmployeeCard from "@/components/EmployeeCard";
+import { mockEmployees, employeeStatuses } from "@/lib/employees";
 
 // --- TYPES ---
 interface Drawing {
@@ -204,13 +206,26 @@ function DashboardContent() {
               </div>
 
               <div className="grid grid-cols-1 gap-6">
-                <div className="paper-texture bg-[#f5f2e8] border-2 border-[#2D2A26] p-6 shadow-brutal-lg flex justify-between items-center group">
-                  <div>
-                    <p className="font-black text-xl uppercase tracking-tighter">Sarah Jenkins</p>
-                    <p className="font-mono text-[10px] opacity-50 font-bold uppercase tracking-widest">Frontend Engineer / 80% Capacity</p>
-                  </div>
-                  <div className="px-4 py-1 bg-[#86efac] border-2 border-[#2D2A26] font-black text-[10px] uppercase shadow-brutal">Online</div>
-                </div>
+                  <ul className="space-y-3">
+                {Object.entries(mockEmployees).map(([employeeId, employee]) => {
+                  const statusInfo = employeeStatuses[employeeId] || {
+                    status: "Offline",
+                    statusColor: "gray" as const,
+                    isInactive: false,
+                  };
+                  return (
+                    <EmployeeCard
+                      key={employeeId}
+                      id={employeeId}
+                      name={employee.full_name}
+                      role={employee.role}
+                      status={statusInfo.status}
+                      statusColor={statusInfo.statusColor}
+                      isInactive={statusInfo.isInactive}
+                    />
+                  );
+                })}
+              </ul>
 
                 <div className={`paper-texture mt-8 p-10 border-2 border-[#2D2A26] shadow-brutal-lg ${isPremium ? 'bg-white' : 'bg-[#ffbb00]'}`}>
                   <div className="flex flex-col md:flex-row justify-between items-center gap-8">
