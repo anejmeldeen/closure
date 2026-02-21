@@ -1,12 +1,13 @@
 "use client";
 
-import { Users, LayoutDashboard, MessageSquare, Lock, Zap } from "lucide-react";
+import { Users, LayoutDashboard, MessageSquare, Lock, Zap, LogOut } from "lucide-react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/utils/supabase";
-import { useState, useEffect } from "react";
 import { PremiumPaymentFlow } from "./premium-payment";
 
 export default function Home() {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<
     "staff" | "whiteboard" | "messaging"
   >("staff");
@@ -16,12 +17,18 @@ export default function Home() {
   useEffect(() => {
     // Check if user has premium access
     const premium = localStorage.getItem("capacity_premium") === "true";
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsPremium(premium);
   }, []);
 
   const handlePremiumSuccess = () => {
     setIsPremium(true);
     setShowPremiumModal(false);
+  };
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    router.push("/login");
   };
 
   return (
@@ -96,25 +103,36 @@ export default function Home() {
           </button>
         </div>
 
-        {/* Premium Button */}
-        <button
-          onClick={() => setShowPremiumModal(true)}
-          className={`ml-auto flex items-center gap-2 px-5 py-2 rounded-lg font-semibold transition-all duration-200 ${
-            isPremium
-              ? "bg-linear-to-r from-cyan-600 to-cyan-500 text-white shadow-lg shadow-cyan-500/30 hover:shadow-cyan-500/40"
-              : "bg-linear-to-r from-amber-400 to-amber-500 text-white shadow-lg shadow-amber-400/30 hover:shadow-amber-400/40 hover:scale-105"
-          }`}
-        >
-          {isPremium ? (
-            <>
-              <Zap size={18} /> Premium
-            </>
-          ) : (
-            <>
-              <Lock size={18} /> Unlock Premium
-            </>
-          )}
-        </button>
+        {/* Right Side Controls */}
+        <div className="ml-auto flex items-center gap-4">
+          {/* Premium Button */}
+          <button
+            onClick={() => setShowPremiumModal(true)}
+            className={`flex items-center gap-2 px-5 py-2 rounded-lg font-semibold transition-all duration-200 ${
+              isPremium
+                ? "bg-linear-to-r from-cyan-600 to-cyan-500 text-white shadow-lg shadow-cyan-500/30 hover:shadow-cyan-500/40"
+                : "bg-linear-to-r from-amber-400 to-amber-500 text-white shadow-lg shadow-amber-400/30 hover:shadow-amber-400/40 hover:scale-105"
+            }`}
+          >
+            {isPremium ? (
+              <>
+                <Zap size={18} /> Premium
+              </>
+            ) : (
+              <>
+                <Lock size={18} /> Unlock Premium
+              </>
+            )}
+          </button>
+
+          {/* Log Out Button */}
+          <button
+            onClick={handleLogout}
+            className="flex items-center gap-2 px-4 py-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg font-medium transition-colors duration-200"
+          >
+            <LogOut size={18} /> Log Out
+          </button>
+        </div>
       </nav>
 
       {/* Main Content Area */}
@@ -131,18 +149,20 @@ export default function Home() {
                   Monitor team availability in real-time
                 </p>
               </div>
-              {isPremium ? (
-                <button className="px-5 py-3 bg-linear-to-r from-cyan-600 to-cyan-500 text-white font-semibold rounded-lg shadow-lg shadow-cyan-500/30 hover:shadow-cyan-500/40 transition-all duration-200 hover:scale-105 flex items-center gap-2">
-                  <Zap size={18} /> Advanced Reassignment
-                </button>
-              ) : (
-                <button
-                  onClick={() => setShowPremiumModal(true)}
-                  className="px-5 py-3 bg-gray-200 text-gray-600 font-semibold rounded-lg cursor-not-allowed flex items-center gap-2 opacity-60"
-                >
-                  <Lock size={18} /> Advanced Reassignment
-                </button>
-              )}
+              <div className="flex gap-4">
+                {isPremium ? (
+                  <button className="px-5 py-3 bg-linear-to-r from-cyan-600 to-cyan-500 text-white font-semibold rounded-lg shadow-lg shadow-cyan-500/30 hover:shadow-cyan-500/40 transition-all duration-200 hover:scale-105 flex items-center gap-2">
+                    <Zap size={18} /> Advanced Reassignment
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => setShowPremiumModal(true)}
+                    className="px-5 py-3 bg-gray-200 text-gray-600 font-semibold rounded-lg cursor-not-allowed flex items-center gap-2 opacity-60"
+                  >
+                    <Lock size={18} /> Advanced Reassignment
+                  </button>
+                )}
+              </div>
             </div>
 
             <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
