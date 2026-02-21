@@ -1,125 +1,54 @@
 "use client";
 
+import { Users, LayoutDashboard, MessageSquare } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { supabase } from "@/utils/supabase";
 import { useState, useEffect } from "react";
-import { Users, LayoutDashboard, MessageSquare, Lock, Zap } from "lucide-react";
 import { PremiumPaymentFlow } from "./premium-payment";
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState<
     "staff" | "whiteboard" | "messaging"
   >("staff");
-  const [isPremium, setIsPremium] = useState(false);
-  const [showPremiumModal, setShowPremiumModal] = useState(false);
-
-  useEffect(() => {
-    // Check if user has premium access
-    const premium = localStorage.getItem("capacity_premium") === "true";
-    setIsPremium(premium);
-  }, []);
-
-  const handlePremiumSuccess = () => {
-    setIsPremium(true);
-    setShowPremiumModal(false);
-  };
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col text-gray-900 font-sans">
-      {/* Premium Modal */}
-      {showPremiumModal && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-[95vw] max-h-[90vh] overflow-y-auto border border-gray-100">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="w-10 h-10 bg-linear-to-br from-cyan-500 to-teal-600 rounded-lg flex items-center justify-center">
-                <Lock size={20} className="text-white" />
-              </div>
-              <h3 className="text-2xl font-bold bg-linear-to-r from-cyan-600 to-teal-700 bg-clip-text text-transparent">
-                Premium Access
-              </h3>
-            </div>
-            <p className="text-gray-600 mb-6 leading-relaxed">
-              Unlock advanced reassignment logic, team analytics, predictive
-              forecasting, and more.
-            </p>
+      {/* Simple Top Navigation */}
+      <nav className="bg-white border-b border-gray-200 p-4 flex items-center shadow-sm">
+        <h1 className="text-2xl font-bold mr-10 tracking-tight">NAME</h1>
 
-            <PremiumPaymentFlow
-              onPaymentSuccess={handlePremiumSuccess}
-              isPremium={isPremium}
-            />
-            <button
-              onClick={() => setShowPremiumModal(false)}
-              className="w-full mt-6 px-4 py-3 text-gray-700 font-medium rounded-lg hover:bg-gray-100 transition-colors duration-200"
-            >
-              Close
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Enhanced Navigation */}
-      <nav className="bg-white/95 backdrop-blur supports-backdrop-filter:bg-white/75 border-b border-gray-200 sticky top-0 z-50 shadow-sm">
-        <div className="max-w-6xl mx-auto px-8 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div className="w-10 h-10 bg-linear-to-br from-cyan-500 to-teal-600 rounded-lg flex items-center justify-center shadow-lg shadow-cyan-500/20">
-              <span className="text-white font-bold text-lg">C</span>
-            </div>
-            <h1 className="text-2xl font-bold bg-linear-to-r from-cyan-600 to-teal-700 bg-clip-text text-transparent">
-              Capacity
-            </h1>
-          </div>
-
-          <div className="flex gap-1">
-            <button
-              onClick={() => setActiveTab("staff")}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all duration-200 ${
-                activeTab === "staff"
-                  ? "bg-linear-to-r from-cyan-500 to-cyan-600 text-white shadow-lg shadow-cyan-500/30"
-                  : "text-gray-600 hover:text-cyan-600 hover:bg-gray-100"
-              }`}
-            >
-              <Users size={18} /> Staff
-            </button>
-
-            <button
-              onClick={() => setActiveTab("whiteboard")}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all duration-200 ${
-                activeTab === "whiteboard"
-                  ? "bg-linear-to-r from-cyan-500 to-cyan-600 text-white shadow-lg shadow-cyan-500/30"
-                  : "text-gray-600 hover:text-cyan-600 hover:bg-gray-100"
-              }`}
-            >
-              <LayoutDashboard size={18} /> Whiteboards
-            </button>
-
-            <button
-              onClick={() => setActiveTab("messaging")}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all duration-200 ${
-                activeTab === "messaging"
-                  ? "bg-linear-to-r from-cyan-500 to-cyan-600 text-white shadow-lg shadow-cyan-500/30"
-                  : "text-gray-600 hover:text-cyan-600 hover:bg-gray-100"
-              }`}
-            >
-              <MessageSquare size={18} /> Messages
-            </button>
-          </div>
-
-          {/* Premium Button */}
+        <div className="flex gap-2">
           <button
-            onClick={() => setShowPremiumModal(true)}
-            className={`flex items-center gap-2 px-5 py-2 rounded-lg font-semibold transition-all duration-200 ${
-              isPremium
-                ? "bg-linear-to-r from-cyan-600 to-cyan-500 text-white shadow-lg shadow-cyan-500/30 hover:shadow-cyan-500/40"
-                : "bg-linear-to-r from-amber-400 to-amber-500 text-white shadow-lg shadow-amber-400/30 hover:shadow-amber-400/40 hover:scale-105"
+            onClick={() => setActiveTab("staff")}
+            className={`flex items-center gap-2 px-4 py-2 rounded-md font-medium transition-colors ${
+              activeTab === "staff"
+                ? "bg-blue-50 text-blue-700"
+                : "text-gray-600 hover:bg-gray-100"
             }`}
           >
-            {isPremium ? (
-              <>
-                <Zap size={18} /> Premium
-              </>
-            ) : (
-              <>
-                <Lock size={18} /> Unlock Premium
-              </>
-            )}
+            <Users size={18} /> Staff Coverage
+          </button>
+
+          <button
+            onClick={() => setActiveTab("whiteboard")}
+            className={`flex items-center gap-2 px-4 py-2 rounded-md font-medium transition-colors ${
+              activeTab === "whiteboard"
+                ? "bg-blue-50 text-blue-700"
+                : "text-gray-600 hover:bg-gray-100"
+            }`}
+          >
+            <LayoutDashboard size={18} /> Whiteboards
+          </button>
+
+          <button
+            onClick={() => setActiveTab("messaging")}
+            className={`flex items-center gap-2 px-4 py-2 rounded-md font-medium transition-colors ${
+              activeTab === "messaging"
+                ? "bg-blue-50 text-blue-700"
+                : "text-gray-600 hover:bg-gray-100"
+            }`}
+          >
+            <MessageSquare size={18} /> Messages
           </button>
         </div>
       </nav>
@@ -152,8 +81,8 @@ export default function Home() {
               )}
             </div>
 
-            <div className="bg-white p-6 rounded-xl shadow-md border border-gray-100 hover:shadow-lg transition-shadow duration-300">
-              <p className="text-gray-500 mb-6 text-sm">
+            <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+              <p className="text-gray-500 mb-4 text-sm">
                 TODO: Wire up Supabase to fetch team status and capacity.
               </p>
 
@@ -268,30 +197,23 @@ export default function Home() {
         {/* 3. MESSAGING TAB */}
         {activeTab === "messaging" && (
           <div className="animate-in fade-in duration-300 h-[calc(100vh-12rem)] flex flex-col">
-            <div className="mb-8">
-              <h2 className="text-3xl font-bold bg-linear-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent mb-1">
-                Team Messages
-              </h2>
-              <p className="text-sm text-gray-500">
-                Direct communication with your team
-              </p>
-            </div>
+            <h2 className="text-2xl font-bold mb-6">Team Messages</h2>
 
-            <div className="bg-white rounded-xl shadow-md border border-gray-100 flex-1 flex flex-col hover:shadow-lg transition-shadow duration-300 overflow-hidden">
+            <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 flex-1 flex flex-col">
               {/* Chat History Area */}
-              <div className="flex-1 bg-linear-to-br from-gray-50 to-gray-100 rounded-t-xl border-b border-gray-200 p-6 flex items-center justify-center">
-                <p className="text-gray-500 text-sm font-medium">
+              <div className="flex-1 bg-gray-50 rounded-md border border-gray-200 p-4 mb-4 flex items-center justify-center">
+                <p className="text-gray-400 text-sm">
                   No messages yet. Wire up Supabase real-time subscriptions
                   here.
                 </p>
               </div>
 
               {/* Chat Input */}
-              <div className="p-4 flex gap-3 bg-white rounded-b-xl">
+              <div className="flex gap-3">
                 <input
                   type="text"
                   placeholder="Type a message to the team..."
-                  className="flex-1 border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all duration-200 font-medium text-gray-900 placeholder-gray-500"
+                  className="flex-1 border border-gray-300 rounded-md px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
                 <button className="px-6 py-3 bg-linear-to-r from-cyan-600 to-cyan-500 text-white font-semibold rounded-lg shadow-lg shadow-cyan-500/30 hover:shadow-cyan-500/40 transition-all duration-200 hover:scale-105">
                   Send
