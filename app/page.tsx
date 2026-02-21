@@ -508,7 +508,19 @@ function DashboardContent() {
 
             <div className="mb-8 pb-8 border-b-2 border-[#2D2A26]">
               <p className="text-xs font-bold mb-3 uppercase opacity-60">Estimated Hours</p>
-              <input type="number" min="0" value={boardTasks[detailsModalOpen]?.estimated_hours || 0} onFocus={(e) => e.target.select()} onChange={(e) => updateTaskHours(detailsModalOpen, parseInt(e.target.value) || 0)} className="w-full p-3 border-2 border-[#2D2A26] font-black text-lg bg-white focus:outline-none" />
+              <input 
+                type="number" 
+                min="0" 
+                value={boardTasks[detailsModalOpen]?.estimated_hours === 0 ? '' : boardTasks[detailsModalOpen]?.estimated_hours} 
+                placeholder="0"
+                onFocus={(e) => e.target.select()} 
+                onChange={(e) => {
+                  const val = e.target.value;
+                  const newHours = val === '' ? 0 : parseInt(val);
+                  updateTaskHours(detailsModalOpen, newHours);
+                }} 
+                className="w-full p-3 border-2 border-[#2D2A26] font-black text-lg bg-white focus:outline-none" 
+              />
             </div>
 
             <p className="text-xs font-bold mb-4 uppercase opacity-60">Task Roster</p>
