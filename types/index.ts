@@ -8,6 +8,8 @@ export interface Profile {
   task_hours_7d: number;    // New
   performance_rating: number; // New (1-5)
   avatar_url?: string;
+  team_id?: string;
+  org_id?: string
 }
 
 export interface DbTask {
