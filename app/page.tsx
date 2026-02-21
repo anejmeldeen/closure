@@ -1,21 +1,37 @@
 "use client";
 
-import { Users, LayoutDashboard, MessageSquare, Lock, Zap } from "lucide-react";
-import { useRouter } from "next/navigation";
-import { supabase } from "@/utils/supabase";
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { supabase } from "@/utils/supabase";
+import { 
+  Users, 
+  LayoutDashboard, 
+  MessageSquare, 
+  Lock, 
+  Zap, 
+  LogOut, 
+  Calendar, 
+  X, 
+  Settings 
+} from "lucide-react";
+
 import { PremiumPaymentFlow } from "./premium-payment";
+import AvailabilityCalendar from "@/components/AvailabilityCalendar";
 
 export default function Home() {
-  const [activeTab, setActiveTab] = useState<
-    "staff" | "whiteboard" | "messaging"
-  >("staff");
+  const router = useRouter();
+  
+  // States
+  const [activeTab, setActiveTab] = useState<"staff" | "whiteboard" | "messaging">("staff");
   const [isPremium, setIsPremium] = useState(false);
   const [showPremiumModal, setShowPremiumModal] = useState(false);
+  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
 
   useEffect(() => {
     // Check if user has premium access
     const premium = localStorage.getItem("capacity_premium") === "true";
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsPremium(premium);
   }, []);
 
@@ -24,8 +40,14 @@ export default function Home() {
     setShowPremiumModal(false);
   };
 
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    router.push("/login");
+  };
+
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col text-gray-900 font-sans">
+    <div className="min-h-screen bg-gray-50 flex flex-col text-gray-900 font-sans overflow-x-hidden">
+      
       {/* Premium Modal */}
       {showPremiumModal && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50">
@@ -57,68 +79,90 @@ export default function Home() {
         </div>
       )}
 
-      {/* Simple Top Navigation */}
-      <nav className="bg-white border-b border-gray-200 p-4 flex items-center shadow-sm">
-        <h1 className="text-2xl font-bold mr-10 tracking-tight">Capacity</h1>
+      {/* Top Navigation */}
+      <nav className="bg-white border-b border-gray-200 p-4 flex items-center justify-between shadow-sm z-10">
+        
+        {/* Left Side: Logo and Tabs */}
+        <div className="flex items-center">
+          <h1 className="text-2xl font-bold mr-10 tracking-tight">Capacity</h1>
+          
+          <div className="flex gap-2">
+            <button
+              onClick={() => setActiveTab("staff")}
+              className={`flex items-center gap-2 px-4 py-2 rounded-md font-medium transition-colors ${
+                activeTab === "staff"
+                  ? "bg-blue-50 text-blue-700"
+                  : "text-gray-600 hover:bg-gray-100"
+              }`}
+            >
+              <Users size={18} /> Staff Coverage
+            </button>
 
-        <div className="flex gap-2">
-          <button
-            onClick={() => setActiveTab("staff")}
-            className={`flex items-center gap-2 px-4 py-2 rounded-md font-medium transition-colors ${
-              activeTab === "staff"
-                ? "bg-blue-50 text-blue-700"
-                : "text-gray-600 hover:bg-gray-100"
-            }`}
-          >
-            <Users size={18} /> Staff Coverage
-          </button>
+            <button
+              onClick={() => setActiveTab("whiteboard")}
+              className={`flex items-center gap-2 px-4 py-2 rounded-md font-medium transition-colors ${
+                activeTab === "whiteboard"
+                  ? "bg-blue-50 text-blue-700"
+                  : "text-gray-600 hover:bg-gray-100"
+              }`}
+            >
+              <LayoutDashboard size={18} /> Whiteboards
+            </button>
 
-          <button
-            onClick={() => setActiveTab("whiteboard")}
-            className={`flex items-center gap-2 px-4 py-2 rounded-md font-medium transition-colors ${
-              activeTab === "whiteboard"
-                ? "bg-blue-50 text-blue-700"
-                : "text-gray-600 hover:bg-gray-100"
-            }`}
-          >
-            <LayoutDashboard size={18} /> Whiteboards
-          </button>
-
-          <button
-            onClick={() => setActiveTab("messaging")}
-            className={`flex items-center gap-2 px-4 py-2 rounded-md font-medium transition-colors ${
-              activeTab === "messaging"
-                ? "bg-blue-50 text-blue-700"
-                : "text-gray-600 hover:bg-gray-100"
-            }`}
-          >
-            <MessageSquare size={18} /> Messages
-          </button>
+            <button
+              onClick={() => setActiveTab("messaging")}
+              className={`flex items-center gap-2 px-4 py-2 rounded-md font-medium transition-colors ${
+                activeTab === "messaging"
+                  ? "bg-blue-50 text-blue-700"
+                  : "text-gray-600 hover:bg-gray-100"
+              }`}
+            >
+              <MessageSquare size={18} /> Messages
+            </button>
+          </div>
         </div>
 
-        {/* Premium Button */}
-        <button
-          onClick={() => setShowPremiumModal(true)}
-          className={`ml-auto flex items-center gap-2 px-5 py-2 rounded-lg font-semibold transition-all duration-200 ${
-            isPremium
-              ? "bg-linear-to-r from-cyan-600 to-cyan-500 text-white shadow-lg shadow-cyan-500/30 hover:shadow-cyan-500/40"
-              : "bg-linear-to-r from-amber-400 to-amber-500 text-white shadow-lg shadow-amber-400/30 hover:shadow-amber-400/40 hover:scale-105"
-          }`}
-        >
-          {isPremium ? (
-            <>
-              <Zap size={18} /> Premium
-            </>
-          ) : (
-            <>
-              <Lock size={18} /> Unlock Premium
-            </>
-          )}
-        </button>
+        {/* Right Side Controls (Settings, Premium, Logout) */}
+        <div className="flex items-center gap-4">
+          <Link 
+            href="/settings"
+            className="p-2 text-gray-500 hover:text-gray-800 hover:bg-gray-100 rounded-full transition-colors flex items-center justify-center"
+            title="Settings"
+          >
+            <Settings size={20} />
+          </Link>
+
+          <button
+            onClick={() => setShowPremiumModal(true)}
+            className={`flex items-center gap-2 px-5 py-2 rounded-lg font-semibold transition-all duration-200 ${
+              isPremium
+                ? "bg-linear-to-r from-cyan-600 to-cyan-500 text-white shadow-lg shadow-cyan-500/30 hover:shadow-cyan-500/40"
+                : "bg-linear-to-r from-amber-400 to-amber-500 text-white shadow-lg shadow-amber-400/30 hover:shadow-amber-400/40 hover:scale-105"
+            }`}
+          >
+            {isPremium ? (
+              <>
+                <Zap size={18} /> Premium
+              </>
+            ) : (
+              <>
+                <Lock size={18} /> Unlock Premium
+              </>
+            )}
+          </button>
+
+          <button
+            onClick={handleLogout}
+            className="flex items-center gap-2 px-4 py-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg font-medium transition-colors duration-200"
+          >
+            <LogOut size={18} /> Log Out
+          </button>
+        </div>
       </nav>
 
       {/* Main Content Area */}
-      <main className="flex-1 p-8 max-w-6xl mx-auto w-full">
+      <main className="flex-1 p-8 max-w-6xl mx-auto w-full relative">
+        
         {/* 1. STAFF TAB */}
         {activeTab === "staff" && (
           <div className="animate-in fade-in duration-300">
@@ -131,18 +175,28 @@ export default function Home() {
                   Monitor team availability in real-time
                 </p>
               </div>
-              {isPremium ? (
-                <button className="px-5 py-3 bg-linear-to-r from-cyan-600 to-cyan-500 text-white font-semibold rounded-lg shadow-lg shadow-cyan-500/30 hover:shadow-cyan-500/40 transition-all duration-200 hover:scale-105 flex items-center gap-2">
-                  <Zap size={18} /> Advanced Reassignment
-                </button>
-              ) : (
-                <button
-                  onClick={() => setShowPremiumModal(true)}
-                  className="px-5 py-3 bg-gray-200 text-gray-600 font-semibold rounded-lg cursor-not-allowed flex items-center gap-2 opacity-60"
+              
+              <div className="flex gap-3">
+                <button 
+                  onClick={() => setIsCalendarOpen(true)}
+                  className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 text-gray-700 font-medium rounded-lg shadow-sm hover:bg-gray-50 transition-colors"
                 >
-                  <Lock size={18} /> Advanced Reassignment
+                  <Calendar size={18} /> View Schedule
                 </button>
-              )}
+                
+                {isPremium ? (
+                  <button className="px-5 py-2 bg-linear-to-r from-cyan-600 to-cyan-500 text-white font-semibold rounded-lg shadow-lg shadow-cyan-500/30 hover:shadow-cyan-500/40 transition-all duration-200 hover:scale-105 flex items-center gap-2">
+                    <Zap size={18} /> Advanced Reassignment
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => setShowPremiumModal(true)}
+                    className="px-5 py-2 bg-gray-200 text-gray-600 font-semibold rounded-lg cursor-not-allowed flex items-center gap-2 opacity-60"
+                  >
+                    <Lock size={18} /> Advanced Reassignment
+                  </button>
+                )}
+              </div>
             </div>
 
             <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
@@ -150,7 +204,6 @@ export default function Home() {
                 TODO: Wire up Supabase to fetch team status and capacity.
               </p>
 
-              {/* Barebones mock list to show teammate */}
               <ul className="space-y-3">
                 <li className="p-4 bg-linear-to-r from-gray-50 to-gray-100 border border-gray-200 rounded-lg flex justify-between items-center hover:border-gray-300 transition-colors duration-200">
                   <div>
@@ -264,15 +317,13 @@ export default function Home() {
             <h2 className="text-2xl font-bold mb-6">Team Messages</h2>
 
             <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 flex-1 flex flex-col">
-              {/* Chat History Area */}
               <div className="flex-1 bg-gray-50 rounded-md border border-gray-200 p-4 mb-4 flex items-center justify-center">
                 <p className="text-gray-400 text-sm">
                   No messages yet. Wire up Supabase real-time subscriptions
                   here.
                 </p>
               </div>
-
-              {/* Chat Input */}
+              
               <div className="flex gap-3">
                 <input
                   type="text"
@@ -287,6 +338,41 @@ export default function Home() {
           </div>
         )}
       </main>
+
+      {/* --- PULL-OUT CALENDAR DRAWER --- */}
+      {/* Background Overlay */}
+      {isCalendarOpen && (
+        <div 
+          className="fixed inset-0 bg-black/20 z-40 transition-opacity"
+          onClick={() => setIsCalendarOpen(false)}
+        />
+      )}
+      
+      {/* Sliding Tab */}
+      <div 
+        className={`fixed top-0 right-0 h-full w-full max-w-[450px] bg-gray-50 shadow-2xl border-l border-gray-200 z-50 transform transition-transform duration-300 ease-in-out ${
+          isCalendarOpen ? 'translate-x-0' : 'translate-x-full'
+        }`}
+      >
+        <div className="h-full flex flex-col">
+          <div className="flex justify-between items-center p-6 border-b border-gray-200 bg-white">
+            <h2 className="text-xl font-bold flex items-center gap-2">
+              <Calendar size={20} className="text-blue-600" />
+              Team Schedule
+            </h2>
+            <button 
+              onClick={() => setIsCalendarOpen(false)}
+              className="p-2 text-gray-500 hover:text-gray-800 hover:bg-gray-100 rounded-full transition-colors"
+            >
+              <X size={20} />
+            </button>
+          </div>
+          
+          <div className="flex-1 overflow-y-auto p-6">
+            <AvailabilityCalendar employeeIds={['emp_1', 'emp_2']} />
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
