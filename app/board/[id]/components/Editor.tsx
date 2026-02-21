@@ -2,6 +2,7 @@
 
 import { useEditor } from 'tldraw';
 import { useAiNoteFiller } from '@/hooks/useAINoteFiller';
+import { Sparkles, Loader2 } from 'lucide-react';
 
 export default function EditorContent({ handleBack }: { handleBack: () => void }) {
   const editor = useEditor();
@@ -18,18 +19,18 @@ export default function EditorContent({ handleBack }: { handleBack: () => void }
       {/* BACK BUTTON */}
       <button 
         onClick={handleBack}
-        className="pointer-events-auto h-10 px-6 bg-[#F5F2E8] border-2 border-[#2D2A26] text-[#2D2A26] shadow-[4px_4px_0px_0px_rgba(45,42,38,1)] hover:translate-y-1 hover:shadow-none transition-all text-xs font-bold uppercase tracking-widest"
+        className="pointer-events-auto flex items-center justify-center h-12 px-6 bg-white border-4 border-[#2D2A26] text-[#2D2A26] shadow-[4px_4px_0px_0px_rgba(45,42,38,1)] hover:translate-y-1 hover:shadow-none transition-all text-xs font-black uppercase tracking-widest"
       >
-        Back
+        Back to HQ
       </button>
 
       {/* AI MAGIC FILL CONTROLS */}
       {pendingShapeId ? (
-        <div className="pointer-events-auto flex gap-2 animate-in fade-in slide-in-from-top-2">
-          <button onClick={handleAccept} className="h-10 px-4 bg-[#86efac] border-2 border-[#2D2A26] shadow-[4px_4px_0px_0px_rgba(45,42,38,1)] hover:translate-y-1 hover:shadow-none transition-all font-bold text-xs uppercase tracking-widest">
+        <div className="pointer-events-auto flex gap-4 animate-in fade-in slide-in-from-top-2">
+          <button onClick={handleAccept} className="h-12 px-6 bg-[#86efac] border-4 border-[#2D2A26] text-[#2D2A26] shadow-[4px_4px_0px_0px_rgba(45,42,38,1)] hover:translate-y-1 hover:shadow-none transition-all font-black text-xs uppercase tracking-widest">
             Accept
           </button>
-          <button onClick={handleReject} className="h-10 px-4 bg-[#fca5a5] border-2 border-[#2D2A26] shadow-[4px_4px_0px_0px_rgba(45,42,38,1)] hover:translate-y-1 hover:shadow-none transition-all font-bold text-xs uppercase tracking-widest">
+          <button onClick={handleReject} className="h-12 px-6 bg-[#fca5a5] border-4 border-[#2D2A26] text-[#2D2A26] shadow-[4px_4px_0px_0px_rgba(45,42,38,1)] hover:translate-y-1 hover:shadow-none transition-all font-black text-xs uppercase tracking-widest">
             Reject
           </button>
         </div>
@@ -37,9 +38,10 @@ export default function EditorContent({ handleBack }: { handleBack: () => void }
         <button 
           onClick={generateSolution}
           disabled={isGenerating}
-          className={`pointer-events-auto h-10 px-6 border-2 border-[#2D2A26] text-[#2D2A26] shadow-[4px_4px_0px_0px_rgba(45,42,38,1)] hover:translate-y-1 hover:shadow-none transition-all text-xs font-bold uppercase tracking-widest ${isGenerating ? 'bg-gray-200' : 'bg-[#bae6fd]'}`}
+          className={`pointer-events-auto flex items-center gap-3 h-12 px-6 border-4 border-[#2D2A26] text-[#2D2A26] shadow-[4px_4px_0px_0px_rgba(45,42,38,1)] hover:translate-y-1 hover:shadow-none transition-all text-xs font-black uppercase tracking-widest ${isGenerating ? 'bg-gray-200 opacity-80 cursor-not-allowed' : 'bg-[#ffbb00]'}`}
         >
-          {isGenerating ? 'Thinking...' : 'Magic Fill'}
+          {isGenerating ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
+          {isGenerating ? 'Synthesizing...' : 'Magic Fill'}
         </button>
       )}
     </div>
