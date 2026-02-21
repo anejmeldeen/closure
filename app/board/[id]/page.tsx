@@ -11,7 +11,6 @@ export default function BoardPage({ params }: { params: Promise<{ id: string }> 
   const { id } = use(params);
   const router = useRouter();
 
-  // Your handleBack now includes the URL param
   const handleBack = () => {
     router.push('/?tab=whiteboard');
   };
@@ -45,6 +44,7 @@ export default function BoardPage({ params }: { params: Promise<{ id: string }> 
 
       <div className="tldraw-canvas w-full h-full relative z-10">
         <Tldraw persistenceKey={`project-${id}`} onMount={handleMount}>
+          {/* This component now handles all top-bar controls */}
           <EditorContent handleBack={handleBack} />
         </Tldraw>
       </div>
