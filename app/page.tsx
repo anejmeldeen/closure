@@ -371,7 +371,7 @@ function DashboardContent() {
                   return (
                     <div key={draw.id} onClick={() => editingId !== draw.id && router.push(`/board/${draw.id}?tab=whiteboard`)} className={`group paper-texture min-h-[24rem] border-2 border-[#2D2A26] p-8 shadow-brutal-lg hover:shadow-none hover:translate-x-1.5 hover:translate-y-1.5 transition-all cursor-pointer flex flex-col justify-between relative ${draw.completed ? 'bg-[#e5e7eb] opacity-80' : 'bg-[#f5f2e8]'}`}>
                       
-                      {/* Priority Bar from Friend's Code replacing standard tape */}
+                      {/* Priority Tape at the top */}
                       <div className={`absolute -top-1 left-1/2 -translate-x-1/2 w-10 h-3 opacity-80 border border-[#2D2A26]/10 ${task.priority === "Critical" ? "bg-red-600" : task.priority === "High" ? "bg-orange-500" : "bg-[#ffbb00]"}`}></div>
                       
                       {draw.completed && <div className="absolute inset-0 flex items-center justify-center pointer-events-none overflow-hidden z-10"><div className="border-4 border-green-600 text-green-600 font-black text-2xl uppercase p-2 rotate-[-15deg] opacity-40 tracking-widest bg-white">COMPLETE</div></div>}
@@ -381,17 +381,12 @@ function DashboardContent() {
                         <button onClick={(e) => toggleStatus(e, draw.id, draw.completed)} className={`w-6 h-6 border-2 border-[#2D2A26] flex items-center justify-center transition-all z-20 relative ${draw.completed ? 'bg-[#86efac]' : 'bg-white shadow-brutal-sm hover:translate-y-0.5'}`}>{draw.completed && <Check size={16} strokeWidth={4} />}</button>
                       </div>
 
+                      {/* TITLE SECTION - Text beneath title removed! */}
                       <div className="mb-4">
                         {editingId === draw.id ? (
                           <input autoFocus className="bg-transparent border-b-4 border-[#2D2A26] text-xl font-black outline-none uppercase w-full tracking-tighter relative z-20" value={editName} onChange={(e) => setEditName(e.target.value)} onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.key === 'Enter' && saveRename()} onBlur={saveRename} />
                         ) : (
-                          <>
-                            <h3 className={`text-xl font-black leading-tight uppercase tracking-tighter mb-2 ${draw.completed ? 'line-through opacity-40' : ''}`}>{draw.name}</h3>
-                            <div className="flex items-center justify-between">
-                              <p className={`text-[10px] font-black uppercase tracking-widest ${task.priority === "Critical" ? "text-red-600" : task.priority === "High" ? "text-orange-600" : "text-gray-600"}`}>{task.priority} Priority</p>
-                              <p className="text-[10px] font-black uppercase tracking-widest text-gray-700">{task.estimated_hours}h est.</p>
-                            </div>
-                          </>
+                          <h3 className={`text-xl font-black leading-tight uppercase tracking-tighter mb-2 ${draw.completed ? 'line-through opacity-40' : ''}`}>{draw.name}</h3>
                         )}
                       </div>
 
@@ -420,12 +415,23 @@ function DashboardContent() {
                         Manage Tasks
                       </button>
 
-                      <div className="flex items-center justify-between gap-3 opacity-0 group-hover:opacity-100 transition-all pt-3 border-t-2 border-[#2D2A26]/10 relative z-20">
-                         <button onClick={(e) => { e.stopPropagation(); setPriorityEditId(draw.id); }} className={`text-[9px] font-black uppercase px-2 py-1 border-2 border-[#2D2A26] ${task.priority === "Critical" ? "bg-red-600 text-white" : task.priority === "High" ? "bg-orange-500 text-white" : "bg-[#ffbb00] text-gray-900"}`}>{task.priority}</button>
-                         <div className="flex gap-3">
-                           <button onClick={(e) => { e.stopPropagation(); setEditingId(draw.id); setEditName(draw.name); }} className="text-[10px] font-black uppercase underline decoration-2 underline-offset-2">Rename</button>
-                           <button onClick={(e) => { e.stopPropagation(); setDeleteTargetId(draw.id); }} className="text-[#2D2A26] hover:text-red-600 transition-colors"><Trash2 size={20} /></button>
+                      {/* ALWAYS VISIBLE BOTTOM BAR */}
+                      <div className="flex items-center justify-between transition-all pt-4 border-t-2 border-[#2D2A26]/10 relative z-20">
+                         
+                         {/* Priority & Est. Hours */}
+                         <div className="flex items-center gap-3">
+                           <button onClick={(e) => { e.stopPropagation(); setPriorityEditId(draw.id); }} className={`text-[9px] font-black uppercase px-2 py-1 border-2 border-[#2D2A26] shadow-brutal-sm hover:translate-y-0.5 transition-all ${task.priority === "Critical" ? "bg-red-600 text-white" : task.priority === "High" ? "bg-orange-500 text-white" : "bg-[#ffbb00] text-gray-900"}`}>
+                             {task.priority}
+                           </button>
+                           <span className="text-[9px] font-black uppercase tracking-widest opacity-60">{task.estimated_hours}h est.</span>
                          </div>
+
+                         {/* Hover-only Tools (Rename/Trash) */}
+                         <div className="flex items-center gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                           <button onClick={(e) => { e.stopPropagation(); setEditingId(draw.id); setEditName(draw.name); }} className="text-[10px] font-black uppercase underline decoration-2 underline-offset-2">Rename</button>
+                           <button onClick={(e) => { e.stopPropagation(); setDeleteTargetId(draw.id); }} className="text-[#2D2A26] hover:text-red-600 transition-colors"><Trash2 size={18} /></button>
+                         </div>
+
                       </div>
                     </div>
                   );
