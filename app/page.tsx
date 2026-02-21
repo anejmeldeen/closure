@@ -2,43 +2,67 @@
 
 import { useState } from 'react';
 import { Users, LayoutDashboard, MessageSquare } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { supabase } from '@/utils/supabase';
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState<'staff' | 'whiteboard' | 'messaging'>('staff');
+  const router = useRouter();
+
+  const handleLogout = async () => {
+    // Tell Supabase to kill the current session
+    await supabase.auth.signOut();
+    // Kick them back to the corkboard login screen
+    router.push('/login');
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col text-gray-900 font-sans">
       
-      {/* Simple Top Navigation */}
-      <nav className="bg-white border-b border-gray-200 p-4 flex items-center shadow-sm">
-        <h1 className="text-2xl font-bold mr-10 tracking-tight">NAME</h1>
+      {/* Top Navigation */}
+      <nav className="bg-white border-b border-gray-200 p-4 flex items-center justify-between shadow-sm">
         
-        <div className="flex gap-2">
-          <button 
-            onClick={() => setActiveTab('staff')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-md font-medium transition-colors ${
-              activeTab === 'staff' ? 'bg-blue-50 text-blue-700' : 'text-gray-600 hover:bg-gray-100'
-            }`}
-          >
-            <Users size={18} /> Staff Coverage
-          </button>
+        {/* Left Side: Logo and Tabs */}
+        <div className="flex items-center">
+          <h1 className="text-2xl font-bold mr-10 tracking-tight">NAME</h1>
           
+          <div className="flex gap-2">
+            <button 
+              onClick={() => setActiveTab('staff')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-md font-medium transition-colors ${
+                activeTab === 'staff' ? 'bg-blue-50 text-blue-700' : 'text-gray-600 hover:bg-gray-100'
+              }`}
+            >
+              <Users size={18} /> Staff Coverage
+            </button>
+            
+            <button 
+              onClick={() => setActiveTab('whiteboard')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-md font-medium transition-colors ${
+                activeTab === 'whiteboard' ? 'bg-blue-50 text-blue-700' : 'text-gray-600 hover:bg-gray-100'
+              }`}
+            >
+              <LayoutDashboard size={18} /> Whiteboards
+            </button>
+            
+            <button 
+              onClick={() => setActiveTab('messaging')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-md font-medium transition-colors ${
+                activeTab === 'messaging' ? 'bg-blue-50 text-blue-700' : 'text-gray-600 hover:bg-gray-100'
+              }`}
+            >
+              <MessageSquare size={18} /> Messages
+            </button>
+          </div>
+        </div>
+
+        {/* Right Side: WORKING Log Out Button */}
+        <div>
           <button 
-            onClick={() => setActiveTab('whiteboard')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-md font-medium transition-colors ${
-              activeTab === 'whiteboard' ? 'bg-blue-50 text-blue-700' : 'text-gray-600 hover:bg-gray-100'
-            }`}
+            onClick={handleLogout}
+            className="px-5 py-2.5 bg-gray-900 text-white font-medium rounded shadow-sm hover:bg-gray-800 transition-colors"
           >
-            <LayoutDashboard size={18} /> Whiteboards
-          </button>
-          
-          <button 
-            onClick={() => setActiveTab('messaging')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-md font-medium transition-colors ${
-              activeTab === 'messaging' ? 'bg-blue-50 text-blue-700' : 'text-gray-600 hover:bg-gray-100'
-            }`}
-          >
-            <MessageSquare size={18} /> Messages
+            Log Out
           </button>
         </div>
       </nav>
@@ -59,7 +83,6 @@ export default function Home() {
             <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
               <p className="text-gray-500 mb-4 text-sm">TODO: Wire up Supabase to fetch team status and capacity.</p>
               
-              {/* Barebones mock list to show teammate */}
               <ul className="space-y-3">
                 <li className="p-4 bg-gray-50 border rounded-md flex justify-between items-center">
                   <div>
@@ -99,12 +122,10 @@ export default function Home() {
             <h2 className="text-2xl font-bold mb-6">Team Messages</h2>
             
             <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 flex-1 flex flex-col">
-              {/* Chat History Area */}
               <div className="flex-1 bg-gray-50 rounded-md border border-gray-200 p-4 mb-4 flex items-center justify-center">
                 <p className="text-gray-400 text-sm">No messages yet. Wire up Supabase real-time subscriptions here.</p>
               </div>
               
-              {/* Chat Input */}
               <div className="flex gap-3">
                 <input 
                   type="text" 
