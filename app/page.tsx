@@ -400,6 +400,15 @@ function DashboardContent() {
     await supabase.from("tasks").upsert(updatedTask);
   };
 
+  const updateTaskDescription = async (
+    boardId: string,
+    description: string,
+  ) => {
+    const updatedTask = { ...boardTasks[boardId], description };
+    setBoardTasks((prev) => ({ ...prev, [boardId]: updatedTask }));
+    await supabase.from("tasks").upsert(updatedTask);
+  };
+
   const filteredDrawings = drawings.filter((d) =>
     d.name.toLowerCase().includes(searchQuery.toLowerCase()),
   );
@@ -986,21 +995,36 @@ function DashboardContent() {
       {/* FRIEND'S TASK DETAILS MODAL (Now uses profiles from Supabase) */}
       {detailsModalOpen && boardTasks[detailsModalOpen] && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-md p-4">
-          <div className="paper-texture bg-[#f5f2e8] border-4 border-[#2D2A26] p-12 max-w-md w-full shadow-brutal-lg max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-200">
-            <div className="flex items-center justify-between mb-8">
-              <h2 className="text-2xl font-black uppercase italic max-w-xs">
+          <div className="paper-texture bg-[#f5f2e8] border-4 border-[#2D2A26] p-6 max-w-md w-full shadow-brutal-lg max-h-[90vh] flex flex-col animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-black uppercase italic max-w-xs leading-tight">
                 {boardTasks[detailsModalOpen]?.title}
               </h2>
               <button
                 onClick={() => setDetailsModalOpen(null)}
-                className="p-2 border-2 border-[#2D2A26] shadow-brutal-sm hover:translate-y-0.5 transition-all bg-white"
+                className="p-2 border-2 border-[#2D2A26] shadow-brutal-sm hover:translate-y-0.5 transition-all bg-white shrink-0"
               >
-                <X size={20} />
+                <X size={18} />
               </button>
             </div>
 
-            <div className="mb-8 pb-8 border-b-2 border-[#2D2A26]">
-              <p className="text-xs font-bold mb-3 uppercase opacity-60">
+            <div className="mb-3 pb-3 border-b-2 border-[#2D2A26]">
+              <p className="text-[10px] font-bold mb-1.5 uppercase opacity-60">
+                Description
+              </p>
+              <textarea
+                rows={2}
+                value={boardTasks[detailsModalOpen]?.description || ""}
+                placeholder="Add a task description..."
+                onChange={(e) =>
+                  updateTaskDescription(detailsModalOpen, e.target.value)
+                }
+                className="w-full p-2 border-2 border-[#2D2A26] font-bold text-sm bg-white focus:outline-none resize-none leading-relaxed"
+              />
+            </div>
+
+            <div className="mb-3 pb-3 border-b-2 border-[#2D2A26]">
+              <p className="text-[10px] font-bold mb-1.5 uppercase opacity-60">
                 Estimated Hours
               </p>
               <input
@@ -1018,14 +1042,14 @@ function DashboardContent() {
                   const newHours = val === "" ? 0 : parseInt(val);
                   updateTaskHours(detailsModalOpen, newHours);
                 }}
-                className="w-full p-3 border-2 border-[#2D2A26] font-black text-lg bg-white focus:outline-none"
+                className="w-full p-2 border-2 border-[#2D2A26] font-black text-base bg-white focus:outline-none"
               />
             </div>
 
-            <p className="text-xs font-bold mb-4 uppercase opacity-60">
+            <p className="text-[10px] font-bold mb-2 uppercase opacity-60">
               Task Roster
             </p>
-            <div className="space-y-2 mb-6 max-h-[250px] overflow-y-auto custom-scrollbar pr-2">
+            <div className="space-y-2 mb-4 flex-1 overflow-y-auto custom-scrollbar pr-2">
               {profiles.map((employee) => {
                 const task = boardTasks[detailsModalOpen];
                 const isPrimary = task?.assigned_to === employee.id;
@@ -1085,7 +1109,7 @@ function DashboardContent() {
             </div>
             <button
               onClick={() => setDetailsModalOpen(null)}
-              className="w-full py-4 bg-[#2D2A26] text-white font-black uppercase text-xs shadow-brutal hover:translate-x-1 hover:translate-y-1 hover:shadow-none transition-all"
+              className="w-full py-3 bg-[#2D2A26] text-white font-black uppercase text-xs shadow-brutal hover:translate-x-1 hover:translate-y-1 hover:shadow-none transition-all shrink-0"
             >
               Save Config
             </button>
