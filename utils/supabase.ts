@@ -1,7 +1,8 @@
-import { createClient } from '@supabase/supabase-js'
+import { createClient } from '@supabase/supabase-js';
 
-// Next.js requires the NEXT_PUBLIC_ prefix to expose these to the browser
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+// This will now pull from .env.local on your machine, 
+// and from the Vercel/GitHub secrets when you deploy.
+export const supabase = createClient(supabaseUrl, supabaseAnonKey);
