@@ -2,6 +2,8 @@
 
 import { useState } from 'react';
 import { Users, LayoutDashboard, MessageSquare } from 'lucide-react';
+// 1. Import your new component here
+import AvailabilityCalendar from '@/components/AvailabilityCalendar';
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState<'staff' | 'whiteboard' | 'messaging'>('staff');
@@ -56,7 +58,7 @@ export default function Home() {
               </button>
             </div>
             
-            <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+            <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 mb-6">
               <p className="text-gray-500 mb-4 text-sm">TODO: Wire up Supabase to fetch team status and capacity.</p>
               
               {/* Barebones mock list to show teammate */}
@@ -77,6 +79,11 @@ export default function Home() {
                 </li>
               </ul>
             </div>
+
+            {/* 2. Place the Calendar Component Here */}
+            {/* Note: In a real app, these IDs would dynamically come from your Supabase query above */}
+            <AvailabilityCalendar employeeIds={['emp_1', 'emp_2']} />
+
           </div>
         )}
 
