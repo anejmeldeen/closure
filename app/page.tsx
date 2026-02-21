@@ -33,14 +33,6 @@ import Image from "next/image";
 import type { Profile } from "@/types/index";
 
 // --- TYPES ---
-interface Drawing {
-  id: string;
-  user_id: string;
-  name: string;
-  completed: boolean;
-  last_modified: string;
-  created_at: string;
-}
 interface ChatRoom {
   id: string;
   name: string;
@@ -55,17 +47,29 @@ interface ChatMessage {
   profiles?: { full_name: string; avatar_url: string };
 }
 
-// Friend's Task Type (Now synced to Supabase)
 interface DbTask {
   id: string;
   title: string;
   description: string;
   priority: "Low" | "Medium" | "High" | "Critical";
   required_skills: string[];
-  assigned_to: string;
+  assigned_to: string | null;
   collaborators: string[];
   status: string;
   estimated_hours: number;
+}
+
+interface Drawing {
+  id: string;
+  user_id: string;
+  name: string;
+  completed: boolean;
+  last_modified: string;
+  created_at: string;
+  priority?: "Low" | "Medium" | "High" | "Critical";
+  assigned_to?: string | null;
+  collaborators?: string[];
+  estimated_hours?: number;
 }
 
 type TabType = "staff" | "whiteboard" | "messaging";
@@ -77,7 +81,7 @@ function DashboardContent() {
 
   // App State
   const [activeTab, setActiveTab] = useState<TabType>(
-    (searchParams.get("tab") as TabType) || "staff",
+    (searchParams.get("tab") as TabType) || "staff"
   );
   const [isPremium, setIsPremium] = useState<boolean>(false);
   const [showPremiumModal, setShowPremiumModal] = useState<boolean>(false);
@@ -94,7 +98,7 @@ function DashboardContent() {
   const [selectedRoom, setSelectedRoom] = useState<string | null>(null);
   const [newMessage, setNewMessage] = useState("");
 
-  // Friend's Task States
+  // Task States
   const [boardTasks, setBoardTasks] = useState<Record<string, DbTask>>({});
   const [detailsModalOpen, setDetailsModalOpen] = useState<string | null>(null);
   const [priorityEditId, setPriorityEditId] = useState<string | null>(null);
@@ -113,7 +117,7 @@ function DashboardContent() {
 
   useEffect(() => {
     const init = async () => {
-      const premium = localStorage.getItem("capacity_premium") === "true";
+      const premium = localStorage.getItem("closure_premium") === "true";
       setIsPremium(premium);
 
       const {
@@ -125,8 +129,8 @@ function DashboardContent() {
       }
       setUser(authUser);
 
-      // PARALLEL FETCH: Profiles, Drawings, Chat Members, AND Tasks
-      const [profRes, drawRes, memberRes, tasksRes] = await Promise.all([
+      // PARALLEL FETCH: Profiles, Drawings, Chat Members
+      const [profRes, drawRes, memberRes] = await Promise.all([
         supabase
           .from("profiles")
           .select("*")
@@ -140,13 +144,11 @@ function DashboardContent() {
           .from("chat_room_members")
           .select("chat_rooms(*)")
           .eq("user_id", authUser.id),
-        supabase.from("tasks").select("*"), // Assuming tasks table exists for friend's logic
       ]);
 
       if (profRes.data) {
         setProfiles(profRes.data as Profile[]);
-        const myProfile =
-          (profRes.data as Profile[]).find((p) => p.id === authUser.id) || null;
+        const myProfile = (profRes.data as Profile[]).find((p) => p.id === authUser.id) || null;
         setUserProfile(myProfile);
       }
 
@@ -161,28 +163,21 @@ function DashboardContent() {
         if (joinedRooms.length > 0) setSelectedRoom(joinedRooms[0].id);
       }
 
-      // INTEGRATE FRIEND'S TASK LOGIC WITH SUPABASE REPOSITORY
+      // Map Tasks directly from Drawings table
       const tasksForBoards: Record<string, DbTask> = {};
-      const dbTasks = (tasksRes.data as DbTask[]) || [];
 
-      // Map existing DB tasks
-      dbTasks.forEach((t) => (tasksForBoards[t.id] = t));
-
-      // Ensure every board has a task object
       fetchedDrawings.forEach((board) => {
-        if (!tasksForBoards[board.id]) {
-          tasksForBoards[board.id] = {
-            id: board.id,
-            title: board.name,
-            description: board.name,
-            priority: "Low",
-            required_skills: [],
-            assigned_to: "",
-            collaborators: [],
-            status: "not-started",
-            estimated_hours: 0,
-          };
-        }
+        tasksForBoards[board.id] = {
+          id: board.id,
+          title: board.name,
+          description: board.name,
+          priority: board.priority || "Low",
+          required_skills: [],
+          assigned_to: board.assigned_to || null,
+          collaborators: board.collaborators || [],
+          status: board.completed ? "completed" : "not-started",
+          estimated_hours: board.estimated_hours || 0,
+        };
       });
       setBoardTasks(tasksForBoards);
       setLoading(false);
@@ -190,7 +185,7 @@ function DashboardContent() {
     init();
   }, [router]);
 
-  // REAL-TIME CHAT LISTENER (Retained your logic)
+  // REAL-TIME CHAT LISTENER
   useEffect(() => {
     if (!selectedRoom) return;
 
@@ -234,9 +229,9 @@ function DashboardContent() {
           setMessages((prev) =>
             prev.find((m) => m.id === msgWithProfile.id)
               ? prev
-              : [...prev, msgWithProfile],
+              : [...prev, msgWithProfile]
           );
-        },
+        }
       )
       .subscribe();
 
@@ -308,7 +303,7 @@ function DashboardContent() {
     }
   };
 
-  // WHITEBOARD & TASK HANDLERS
+  // WHITEBOARD HANDLERS
   const createNewDrawing = async () => {
     if (!user) return;
     const { data } = await supabase
@@ -341,8 +336,8 @@ function DashboardContent() {
       drawings.map((d) =>
         d.id === editingId
           ? { ...d, name: editName, last_modified: timestamp }
-          : d,
-      ),
+          : d
+      )
     );
     setEditingId(null);
     await supabase
@@ -354,12 +349,12 @@ function DashboardContent() {
   const toggleStatus = async (
     e: MouseEvent,
     id: string,
-    currentStatus: boolean,
+    currentStatus: boolean
   ) => {
     e.stopPropagation();
     const newStatus = !currentStatus;
     setDrawings(
-      drawings.map((d) => (d.id === id ? { ...d, completed: newStatus } : d)),
+      drawings.map((d) => (d.id === id ? { ...d, completed: newStatus } : d))
     );
     await supabase
       .from("drawings")
@@ -367,45 +362,82 @@ function DashboardContent() {
       .eq("id", id);
   };
 
-  // FRIEND'S TASK LOGIC (Updated to save to Supabase)
+  // TASK LOGIC WITH FORCED ALERTS (Saving directly to drawings)
   const addCollaboratorToTask = async (boardId: string, employeeId: string) => {
     const task = boardTasks[boardId];
     const newCollabs = task.collaborators?.includes(employeeId)
       ? task.collaborators
       : [...(task.collaborators || []), employeeId];
-    const updatedTask = { ...task, collaborators: newCollabs };
-    setBoardTasks((prev) => ({ ...prev, [boardId]: updatedTask }));
-    await supabase.from("tasks").upsert(updatedTask);
+    setBoardTasks((prev) => ({
+      ...prev,
+      [boardId]: { ...task, collaborators: newCollabs },
+    }));
+
+    const { error } = await supabase
+      .from("drawings")
+      .update({ collaborators: newCollabs })
+      .eq("id", boardId);
+    if (error) alert(`Supabase Error (Collaborators): ${error.message}`);
   };
 
   const assignPrimaryPerson = async (boardId: string, employeeId: string) => {
-    const updatedTask = { ...boardTasks[boardId], assigned_to: employeeId };
-    setBoardTasks((prev) => ({ ...prev, [boardId]: updatedTask }));
-    await supabase.from("tasks").upsert(updatedTask);
+    setBoardTasks((prev) => ({
+      ...prev,
+      [boardId]: { ...prev[boardId], assigned_to: employeeId },
+    }));
+
+    const { error } = await supabase
+      .from("drawings")
+      .update({ assigned_to: employeeId })
+      .eq("id", boardId);
+    if (error) alert(`Supabase Error (Assign): ${error.message}`);
   };
 
   const updateTaskPriority = async (
     boardId: string,
-    newPriority: "Low" | "Medium" | "High" | "Critical",
+    newPriority: "Low" | "Medium" | "High" | "Critical"
   ) => {
-    const updatedTask = { ...boardTasks[boardId], priority: newPriority };
-    setBoardTasks((prev) => ({ ...prev, [boardId]: updatedTask }));
-    await supabase.from("tasks").upsert(updatedTask);
+    setBoardTasks((prev) => ({
+      ...prev,
+      [boardId]: { ...prev[boardId], priority: newPriority },
+    }));
     setPriorityEditId(null);
+
+    const { error } = await supabase
+      .from("drawings")
+      .update({ priority: newPriority })
+      .eq("id", boardId);
+    if (error) alert(`Supabase Error (Priority): ${error.message}`);
   };
 
   const updateTaskHours = async (boardId: string, hours: number) => {
-    const updatedTask = { ...boardTasks[boardId], estimated_hours: hours };
+    setBoardTasks((prev) => ({
+      ...prev,
+      [boardId]: { ...prev[boardId], estimated_hours: hours },
+    }));
+
+    const { error } = await supabase
+      .from("drawings")
+      .update({ estimated_hours: hours })
+      .eq("id", boardId);
+    if (error) alert(`Supabase Error (Hours): ${error.message}`);
+  };
+
+  const updateTaskDescription = async (
+    boardId: string,
+    description: string,
+  ) => {
+    const updatedTask = { ...boardTasks[boardId], description };
     setBoardTasks((prev) => ({ ...prev, [boardId]: updatedTask }));
     await supabase.from("tasks").upsert(updatedTask);
   };
 
   const filteredDrawings = drawings.filter((d) =>
-    d.name.toLowerCase().includes(searchQuery.toLowerCase()),
+    d.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
   const incompleteDrawings = drawings.filter((d) => !d.completed);
   const addablePersonnel = profiles.filter(
-    (p) => !roomMembers.some((m) => m.id === p.id),
+    (p) => !roomMembers.some((m) => m.id === p.id)
   );
 
   if (loading) return <Loader />;
@@ -415,14 +447,18 @@ function DashboardContent() {
       <nav className="paper-texture bg-[#f5f2e8] border-b-2 border-[#2D2A26] px-8 py-4 flex items-center justify-between sticky top-0 z-40 shadow-md">
         <div className="flex items-center gap-12">
           <h1 className="text-2xl font-black uppercase tracking-tighter">
-            Capacity
+            Closure
           </h1>
           <div className="flex gap-1">
             {(["staff", "whiteboard", "messaging"] as const).map((t) => (
               <button
                 key={t}
                 onClick={() => handleTabChange(t)}
-                className={`flex items-center gap-2 px-5 py-2 rounded-md font-bold text-[11px] uppercase tracking-wider transition-all ${activeTab === t ? "bg-[#2D2A26] text-white shadow-brutal -translate-y-0.5" : "text-gray-500 hover:bg-white/50"}`}
+                className={`flex items-center gap-2 px-5 py-2 rounded-md font-bold text-[11px] uppercase tracking-wider transition-all ${
+                  activeTab === t
+                    ? "bg-[#2D2A26] text-white shadow-brutal -translate-y-0.5"
+                    : "text-gray-500 hover:bg-white/50"
+                }`}
               >
                 {t === "staff" && <Users size={16} />}
                 {t === "whiteboard" && <LayoutDashboard size={16} />}
@@ -435,14 +471,18 @@ function DashboardContent() {
         <div className="flex items-center gap-6">
           <button
             onClick={() => setShowPremiumModal(true)}
-            className={`px-6 py-2 border-2 border-[#2D2A26] font-bold text-[10px] uppercase shadow-brutal hover:shadow-none hover:translate-x-0.5 hover:translate-y-0.5 transition-all ${isPremium ? "bg-[#86efac] hover:bg-[#7ee692]" : "bg-[#ffbb00] hover:bg-[#ffcc22]"}`}
+            className={`px-6 py-2 border-2 border-[#2D2A26] font-bold text-[10px] uppercase shadow-brutal hover:shadow-none hover:translate-x-0.5 hover:translate-y-0.5 transition-all ${
+              isPremium
+                ? "bg-[#86efac] hover:bg-[#7ee692]"
+                : "bg-[#ffbb00] hover:bg-[#ffcc22]"
+            }`}
           >
             {isPremium ? "Premium" : "Upgrade"}
           </button>
 
           <Link
             href="/profile"
-            className="w-9 h-9 bg-[#ffbb00] border-2 border-[#2D2A26] flex items-center justify-center font-black text-[11px] uppercase shadow-brutal hover:shadow-none hover:translate-x-0.5 hover:translate-y-0.5 transition-all"
+            className="w-9 h-9 bg-[#468a53] text-white border-2 border-[#2D2A26] flex items-center justify-center font-black text-[11px] uppercase shadow-brutal hover:shadow-none hover:translate-x-0.5 hover:translate-y-0.5 transition-all"
             title={userProfile?.full_name || "Profile"}
           >
             {userProfile?.full_name
@@ -538,7 +578,11 @@ function DashboardContent() {
                       <li
                         key={room.id}
                         onClick={() => setSelectedRoom(room.id)}
-                        className={`p-3 border-2 border-[#2D2A26] font-bold text-xs uppercase cursor-pointer transition-all ${selectedRoom === room.id ? "bg-[#2D2A26] text-white shadow-none translate-x-1 translate-y-1" : "bg-white shadow-brutal-sm hover:bg-gray-50"}`}
+                        className={`p-3 border-2 border-[#2D2A26] font-bold text-xs uppercase cursor-pointer transition-all ${
+                          selectedRoom === room.id
+                            ? "bg-[#2D2A26] text-white shadow-none translate-x-1 translate-y-1"
+                            : "bg-white shadow-brutal-sm hover:bg-gray-50"
+                        }`}
                       >
                         # {room.name}
                       </li>
@@ -661,9 +705,8 @@ function DashboardContent() {
                   const task = boardTasks[draw.id];
                   if (!task) return null;
 
-                  // Map assigned and collabs strictly from Supabase Profiles
                   const assignedPerson = profiles.find(
-                    (p) => p.id === task.assigned_to,
+                    (p) => p.id === task.assigned_to
                   );
                   const collaboratorsList = (task.collaborators || [])
                     .map((id) => profiles.find((p) => p.id === id))
@@ -676,11 +719,18 @@ function DashboardContent() {
                         editingId !== draw.id &&
                         router.push(`/board/${draw.id}?tab=whiteboard`)
                       }
-                      className={`group paper-texture min-h-[24rem] border-2 border-[#2D2A26] p-8 shadow-brutal-lg hover:shadow-none hover:translate-x-1.5 hover:translate-y-1.5 transition-all cursor-pointer flex flex-col justify-between relative ${draw.completed ? "bg-[#e5e7eb] opacity-80" : "bg-[#f5f2e8]"}`}
+                      className={`group paper-texture min-h-[24rem] border-2 border-[#2D2A26] p-8 shadow-brutal-lg hover:shadow-none hover:translate-x-1.5 hover:translate-y-1.5 transition-all cursor-pointer flex flex-col justify-between relative ${
+                        draw.completed ? "bg-[#e5e7eb] opacity-80" : "bg-[#f5f2e8]"
+                      }`}
                     >
-                      {/* Priority Tape at the top */}
                       <div
-                        className={`absolute -top-1 left-1/2 -translate-x-1/2 w-10 h-3 opacity-80 border border-[#2D2A26]/10 ${task.priority === "Critical" ? "bg-red-600" : task.priority === "High" ? "bg-orange-500" : "bg-[#ffbb00]"}`}
+                        className={`absolute -top-1 left-1/2 -translate-x-1/2 w-10 h-3 opacity-80 border border-[#2D2A26]/10 ${
+                          task.priority === "Critical"
+                            ? "bg-red-600"
+                            : task.priority === "High"
+                            ? "bg-orange-500"
+                            : "bg-[#ffbb00]"
+                        }`}
                       ></div>
 
                       {draw.completed && (
@@ -699,7 +749,11 @@ function DashboardContent() {
                           onClick={(e) =>
                             toggleStatus(e, draw.id, draw.completed)
                           }
-                          className={`w-6 h-6 border-2 border-[#2D2A26] flex items-center justify-center transition-all z-20 relative ${draw.completed ? "bg-[#86efac]" : "bg-white shadow-brutal-sm hover:translate-y-0.5"}`}
+                          className={`w-6 h-6 border-2 border-[#2D2A26] flex items-center justify-center transition-all z-20 relative ${
+                            draw.completed
+                              ? "bg-[#86efac]"
+                              : "bg-white shadow-brutal-sm hover:translate-y-0.5"
+                          }`}
                         >
                           {draw.completed && (
                             <Check size={16} strokeWidth={4} />
@@ -707,7 +761,6 @@ function DashboardContent() {
                         </button>
                       </div>
 
-                      {/* TITLE SECTION - Text beneath title removed! */}
                       <div className="mb-4">
                         {editingId === draw.id ? (
                           <input
@@ -721,14 +774,15 @@ function DashboardContent() {
                           />
                         ) : (
                           <h3
-                            className={`text-xl font-black leading-tight uppercase tracking-tighter mb-2 ${draw.completed ? "line-through opacity-40" : ""}`}
+                            className={`text-xl font-black leading-tight uppercase tracking-tighter mb-2 ${
+                              draw.completed ? "line-through opacity-40" : ""
+                            }`}
                           >
                             {draw.name}
                           </h3>
                         )}
                       </div>
 
-                      {/* Assigned Person */}
                       <div className="mb-4 p-3 bg-white/40 rounded border border-[#2D2A26]/20">
                         <p className="text-[8px] font-bold uppercase opacity-60 mb-1">
                           Primary
@@ -738,7 +792,6 @@ function DashboardContent() {
                         </p>
                       </div>
 
-                      {/* Collaborators */}
                       <div className="flex-1 mb-4">
                         {collaboratorsList.length > 0 ? (
                           <>
@@ -763,7 +816,6 @@ function DashboardContent() {
                         )}
                       </div>
 
-                      {/* Details Button */}
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
@@ -774,16 +826,20 @@ function DashboardContent() {
                         Manage Tasks
                       </button>
 
-                      {/* ALWAYS VISIBLE BOTTOM BAR */}
                       <div className="flex items-center justify-between transition-all pt-4 border-t-2 border-[#2D2A26]/10 relative z-20">
-                        {/* Priority & Est. Hours */}
                         <div className="flex items-center gap-3">
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
                               setPriorityEditId(draw.id);
                             }}
-                            className={`text-[9px] font-black uppercase px-2 py-1 border-2 border-[#2D2A26] shadow-brutal-sm hover:translate-y-0.5 transition-all ${task.priority === "Critical" ? "bg-red-600 text-white" : task.priority === "High" ? "bg-orange-500 text-white" : "bg-[#ffbb00] text-gray-900"}`}
+                            className={`text-[9px] font-black uppercase px-2 py-1 border-2 border-[#2D2A26] shadow-brutal-sm hover:translate-y-0.5 transition-all ${
+                              task.priority === "Critical"
+                                ? "bg-red-600 text-white"
+                                : task.priority === "High"
+                                ? "bg-orange-500 text-white"
+                                : "bg-[#ffbb00] text-gray-900"
+                            }`}
                           >
                             {task.priority}
                           </button>
@@ -791,8 +847,6 @@ function DashboardContent() {
                             {task.estimated_hours}h est.
                           </span>
                         </div>
-
-                        {/* Hover-only Tools (Rename/Trash) */}
                         <div className="flex items-center gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
                           <button
                             onClick={(e) => {
@@ -844,7 +898,9 @@ function DashboardContent() {
                 {messages.map((msg) => (
                   <div
                     key={msg.id}
-                    className={`flex items-start gap-4 ${msg.sender_id === user?.id ? "flex-row-reverse" : ""}`}
+                    className={`flex items-start gap-4 ${
+                      msg.sender_id === user?.id ? "flex-row-reverse" : ""
+                    }`}
                   >
                     <Image
                       src={
@@ -858,7 +914,9 @@ function DashboardContent() {
                       className="bg-white border-2 border-[#2D2A26] shadow-brutal-sm rounded-sm shrink-0"
                     />
                     <div
-                      className={`max-w-[70%] p-4 border-2 border-[#2D2A26] shadow-brutal-sm ${msg.sender_id === user?.id ? "bg-[#ffbb00]" : "bg-white"}`}
+                      className={`max-w-[70%] p-4 border-2 border-[#2D2A26] shadow-brutal-sm ${
+                        msg.sender_id === user?.id ? "bg-[#ffbb00]" : "bg-white"
+                      }`}
                     >
                       <p className="text-[9px] font-black uppercase opacity-40 mb-1">
                         {msg.profiles?.full_name} •{" "}
@@ -897,7 +955,7 @@ function DashboardContent() {
         </section>
       </main>
 
-      {/* --- ALL MODALS --- */}
+      {/* MODALS */}
       {isCreateRoomOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4">
           <div className="paper-texture bg-[#f5f2e8] border-4 border-[#2D2A26] p-10 max-w-md w-full shadow-brutal-lg">
@@ -983,24 +1041,38 @@ function DashboardContent() {
         </div>
       )}
 
-      {/* FRIEND'S TASK DETAILS MODAL (Now uses profiles from Supabase) */}
       {detailsModalOpen && boardTasks[detailsModalOpen] && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-md p-4">
-          <div className="paper-texture bg-[#f5f2e8] border-4 border-[#2D2A26] p-12 max-w-md w-full shadow-brutal-lg max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-200">
-            <div className="flex items-center justify-between mb-8">
-              <h2 className="text-2xl font-black uppercase italic max-w-xs">
+          <div className="paper-texture bg-[#f5f2e8] border-4 border-[#2D2A26] p-6 max-w-md w-full shadow-brutal-lg max-h-[90vh] flex flex-col animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-black uppercase italic max-w-xs leading-tight">
                 {boardTasks[detailsModalOpen]?.title}
               </h2>
               <button
                 onClick={() => setDetailsModalOpen(null)}
-                className="p-2 border-2 border-[#2D2A26] shadow-brutal-sm hover:translate-y-0.5 transition-all bg-white"
+                className="p-2 border-2 border-[#2D2A26] shadow-brutal-sm hover:translate-y-0.5 transition-all bg-white shrink-0"
               >
-                <X size={20} />
+                <X size={18} />
               </button>
             </div>
 
-            <div className="mb-8 pb-8 border-b-2 border-[#2D2A26]">
-              <p className="text-xs font-bold mb-3 uppercase opacity-60">
+            <div className="mb-3 pb-3 border-b-2 border-[#2D2A26]">
+              <p className="text-[10px] font-bold mb-1.5 uppercase opacity-60">
+                Description
+              </p>
+              <textarea
+                rows={2}
+                value={boardTasks[detailsModalOpen]?.description || ""}
+                placeholder="Add a task description..."
+                onChange={(e) =>
+                  updateTaskDescription(detailsModalOpen, e.target.value)
+                }
+                className="w-full p-2 border-2 border-[#2D2A26] font-bold text-sm bg-white focus:outline-none resize-none leading-relaxed"
+              />
+            </div>
+
+            <div className="mb-3 pb-3 border-b-2 border-[#2D2A26]">
+              <p className="text-[10px] font-bold mb-1.5 uppercase opacity-60">
                 Estimated Hours
               </p>
               <input
@@ -1018,19 +1090,19 @@ function DashboardContent() {
                   const newHours = val === "" ? 0 : parseInt(val);
                   updateTaskHours(detailsModalOpen, newHours);
                 }}
-                className="w-full p-3 border-2 border-[#2D2A26] font-black text-lg bg-white focus:outline-none"
+                className="w-full p-2 border-2 border-[#2D2A26] font-black text-base bg-white focus:outline-none"
               />
             </div>
 
-            <p className="text-xs font-bold mb-4 uppercase opacity-60">
+            <p className="text-[10px] font-bold mb-2 uppercase opacity-60">
               Task Roster
             </p>
-            <div className="space-y-2 mb-6 max-h-[250px] overflow-y-auto custom-scrollbar pr-2">
+            <div className="space-y-2 mb-4 flex-1 overflow-y-auto custom-scrollbar pr-2">
               {profiles.map((employee) => {
                 const task = boardTasks[detailsModalOpen];
                 const isPrimary = task?.assigned_to === employee.id;
                 const isCollaborator = task?.collaborators?.includes(
-                  employee.id,
+                  employee.id
                 );
 
                 return (
@@ -1064,7 +1136,11 @@ function DashboardContent() {
                         onClick={() =>
                           assignPrimaryPerson(detailsModalOpen, employee.id)
                         }
-                        className={`px-2 py-1 border-2 border-[#2D2A26] font-black text-[8px] uppercase transition-all ${isPrimary ? "bg-[#2D2A26] text-white" : "bg-white hover:bg-gray-100"}`}
+                        className={`px-2 py-1 border-2 border-[#2D2A26] font-black text-[8px] uppercase transition-all ${
+                          isPrimary
+                            ? "bg-[#2D2A26] text-white"
+                            : "bg-white hover:bg-gray-100"
+                        }`}
                       >
                         Lead
                       </button>
@@ -1074,7 +1150,13 @@ function DashboardContent() {
                           addCollaboratorToTask(detailsModalOpen, employee.id)
                         }
                         disabled={isPrimary}
-                        className={`px-2 py-1 border-2 border-[#2D2A26] font-black text-[8px] uppercase transition-all ${isPrimary ? "opacity-50 cursor-not-allowed" : isCollaborator ? "bg-[#86efac] text-gray-900" : "bg-white hover:bg-[#ffbb00]"}`}
+                        className={`px-2 py-1 border-2 border-[#2D2A26] font-black text-[8px] uppercase transition-all ${
+                          isPrimary
+                            ? "opacity-50 cursor-not-allowed"
+                            : isCollaborator
+                            ? "bg-[#86efac] text-gray-900"
+                            : "bg-white hover:bg-[#ffbb00]"
+                        }`}
                       >
                         Add
                       </button>
@@ -1085,7 +1167,7 @@ function DashboardContent() {
             </div>
             <button
               onClick={() => setDetailsModalOpen(null)}
-              className="w-full py-4 bg-[#2D2A26] text-white font-black uppercase text-xs shadow-brutal hover:translate-x-1 hover:translate-y-1 hover:shadow-none transition-all"
+              className="w-full py-3 bg-[#2D2A26] text-white font-black uppercase text-xs shadow-brutal hover:translate-x-1 hover:translate-y-1 hover:shadow-none transition-all shrink-0"
             >
               Save Config
             </button>
@@ -1093,7 +1175,6 @@ function DashboardContent() {
         </div>
       )}
 
-      {/* FRIEND'S PRIORITY SELECTOR MODAL */}
       {priorityEditId && boardTasks[priorityEditId] && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-md p-4">
           <div className="paper-texture bg-[#f5f2e8] border-4 border-[#2D2A26] p-12 max-w-md w-full shadow-brutal-lg">
@@ -1114,7 +1195,15 @@ function DashboardContent() {
                   <button
                     key={priority}
                     onClick={() => updateTaskPriority(priorityEditId, priority)}
-                    className={`w-full p-4 border-2 border-[#2D2A26] font-black text-left text-xs uppercase tracking-tight transition-all shadow-brutal-sm hover:translate-x-0.5 hover:translate-y-0.5 ${boardTasks[priorityEditId]?.priority === priority ? (priority === "Critical" ? "bg-red-600 text-white" : priority === "High" ? "bg-orange-500 text-white" : "bg-[#ffbb00] text-gray-900") : "bg-white"}`}
+                    className={`w-full p-4 border-2 border-[#2D2A26] font-black text-left text-xs uppercase tracking-tight transition-all shadow-brutal-sm hover:translate-x-0.5 hover:translate-y-0.5 ${
+                      boardTasks[priorityEditId]?.priority === priority
+                        ? priority === "Critical"
+                          ? "bg-red-600 text-white"
+                          : priority === "High"
+                          ? "bg-orange-500 text-white"
+                          : "bg-[#ffbb00] text-gray-900"
+                        : "bg-white"
+                    }`}
                   >
                     <div className="flex items-center gap-3">
                       <span>{priority} Level</span>
@@ -1123,7 +1212,7 @@ function DashboardContent() {
                       )}
                     </div>
                   </button>
-                ),
+                )
               )}
             </div>
           </div>
@@ -1170,7 +1259,7 @@ function DashboardContent() {
               <PremiumPaymentFlow
                 onPaymentSuccess={() => {
                   setIsPremium(true);
-                  localStorage.setItem("capacity_premium", "true");
+                  localStorage.setItem("closure_premium", "true");
                   setShowPremiumModal(false);
                 }}
                 isPremium={isPremium}

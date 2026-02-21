@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Capacity",
-  description: "Centralized team availability and task reassignment",
+  title: "Closure",
+  description: "Bringing closure to your team.",
 };
 
 export default function RootLayout({
