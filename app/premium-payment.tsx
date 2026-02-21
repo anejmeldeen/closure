@@ -137,16 +137,18 @@ export function PremiumPaymentFlow({
     };
 
     return (
-      <div className="flex flex-col gap-3">
-        <div className="flex items-center gap-3 text-green-700 text-sm font-semibold bg-linear-to-r from-green-50 to-emerald-50 p-4 rounded-lg border border-green-200 shadow-sm">
-          <div className="w-5 h-5 bg-green-500 rounded-full flex items-center justify-center">
-            <CheckCircle size={14} className="text-white" />
+      <div className="flex flex-col gap-4">
+        <div className="border-2 border-[#2D2A26] bg-[#86efac] p-6 shadow-brutal">
+          <div className="flex items-center gap-3">
+            <Check size={24} strokeWidth={3} className="text-[#2D2A26]" />
+            <h3 className="font-black text-lg uppercase text-[#2D2A26]">
+              Premium Active
+            </h3>
           </div>
-          <span>Premium Active ✓</span>
         </div>
         <button
           onClick={handleDisablePremium}
-          className="px-4 py-2 text-sm bg-linear-to-r from-red-500 to-red-600 text-white font-semibold rounded-lg hover:shadow-lg hover:shadow-red-500/30 transition-all duration-200 hover:scale-105"
+          className="px-6 py-3 bg-red-600 text-white border-2 border-[#2D2A26] font-black uppercase text-sm shadow-brutal hover:shadow-none hover:translate-x-0.5 hover:translate-y-0.5 transition-all"
         >
           Disable Premium
         </button>
@@ -155,15 +157,15 @@ export function PremiumPaymentFlow({
   }
 
   return (
-    <div className="flex flex-col gap-3 w-full">
+    <div className="flex flex-col gap-4 w-full">
       {!connected ? (
         <>
           <button
             onClick={handleConnect}
             disabled={connecting}
-            className="w-full px-4 py-3 bg-linear-to-r from-cyan-600 to-cyan-500 text-white font-semibold rounded-lg shadow-lg shadow-cyan-500/30 hover:shadow-cyan-500/40 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:scale-100 hover:scale-105"
+            className="w-full px-6 py-3 bg-[#2D2A26] text-white border-2 border-[#2D2A26] font-black uppercase text-sm shadow-brutal hover:shadow-none hover:translate-x-0.5 hover:translate-y-0.5 disabled:opacity-50 transition-all"
           >
-            {connecting ? "Connecting..." : "🔗 Connect Phantom Wallet"}
+            {connecting ? "Connecting..." : "Connect Phantom Wallet"}
           </button>
 
           <button
@@ -171,31 +173,30 @@ export function PremiumPaymentFlow({
               localStorage.setItem("capacity_premium", "true");
               onPaymentSuccess();
             }}
-            className="w-full px-4 py-3 bg-linear-to-r from-gray-400 to-gray-500 text-white font-semibold rounded-lg hover:shadow-lg hover:shadow-gray-400/30 transition-all duration-200 hover:scale-105"
+            className="w-full px-6 py-3 bg-[#ffbb00] text-[#2D2A26] border-2 border-[#2D2A26] font-black uppercase text-sm shadow-brutal hover:shadow-none hover:translate-x-0.5 hover:translate-y-0.5 transition-all"
           >
-            🧪 Test Demo (No Payment)
+            Test Demo (No Payment)
           </button>
         </>
       ) : (
         <>
-          <div className="bg-linear-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg p-4 space-y-3">
-            <div className="text-xs font-semibold text-green-800 flex items-center gap-2">
-              <div className="w-4 h-4 bg-green-500 rounded-full"></div>
+          <div className="border-2 border-[#2D2A26] bg-[#f5f2e8] p-6 shadow-brutal">
+            <h4 className="font-black uppercase text-xs tracking-widest text-[#2D2A26] mb-4">
               Wallet Connected
-            </div>
-            <div className="flex items-center justify-between gap-2 bg-white p-3 rounded-lg border border-green-200 shadow-sm">
-              <code className="text-xs font-mono text-gray-700 font-semibold">
+            </h4>
+            <div className="flex items-center justify-between gap-2 bg-white p-3 border-2 border-[#2D2A26] shadow-brutal-sm">
+              <code className="text-xs font-mono text-[#2D2A26] font-bold">
                 {publicKey?.toString().slice(0, 16)}...
               </code>
               <button
                 onClick={copyAddress}
-                className="p-2 hover:bg-gray-100 rounded-lg transition-colors duration-200"
+                className="p-2 hover:bg-[#2D2A26] hover:text-white transition-all"
                 title="Copy address"
               >
                 {copied ? (
-                  <Check size={16} className="text-green-600 font-bold" />
+                  <Check size={16} className="text-[#2D2A26]" strokeWidth={3} />
                 ) : (
-                  <Copy size={16} className="text-gray-600" />
+                  <Copy size={16} className="text-[#2D2A26]" />
                 )}
               </button>
             </div>
@@ -203,18 +204,20 @@ export function PremiumPaymentFlow({
           <button
             onClick={handlePayment}
             disabled={loading}
-            className="w-full px-4 py-3 bg-linear-to-r from-cyan-600 to-cyan-500 text-white font-semibold rounded-lg shadow-lg shadow-cyan-500/30 hover:shadow-cyan-500/40 transition-all duration-200 disabled:opacity-50 hover:scale-105"
+            className="w-full px-6 py-3 bg-[#86efac] text-[#2D2A26] border-2 border-[#2D2A26] font-black uppercase text-sm shadow-brutal hover:shadow-none hover:translate-x-0.5 hover:translate-y-0.5 disabled:opacity-50 transition-all"
           >
             {loading
-              ? "⏳ Processing payment..."
-              : `💳 Pay ${PREMIUM_PRICE_SOL} SOL for Premium`}
+              ? "Processing..."
+              : `Pay ${PREMIUM_PRICE_SOL} SOL for Premium`}
           </button>
         </>
       )}
       {error && (
-        <span className="text-red-700 text-sm font-semibold text-center bg-red-50 p-3 rounded-lg border border-red-200">
-          ⚠️ {error}
-        </span>
+        <div className="border-2 border-red-600 bg-red-100 p-4 shadow-brutal">
+          <p className="text-red-700 text-xs font-black uppercase">
+            Error: {error}
+          </p>
+        </div>
       )}
     </div>
   );
