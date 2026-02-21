@@ -23,6 +23,7 @@
     "react-dom": "19.2.3",
     "supabase": "^2.76.12",
     "tldraw": "^4.4.0"
+    "supabase": "^2.76.12"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
