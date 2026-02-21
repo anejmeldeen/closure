@@ -1,25 +1,25 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap");
 @import "tailwindcss";
 
 :root {
   /* THEME PALETTE */
-  --paper: #F5F2E8;  /* Cream */
-  --ink: #2D2A26;    /* Soft Black */
-  --orange: #D97757; /* Accent */
-  --desk: #101419;   /* Deep Midnight (Premium Dark Blue/Black) */
+  --paper: #f5f2e8; /* Cream */
+  --ink: #2d2a26; /* Soft Black */
+  --orange: #d97757; /* Accent */
+  --desk: #101419; /* Deep Midnight (Premium Dark Blue/Black) */
 }
 
 body {
   background-color: var(--desk);
   color: var(--ink);
-  font-family: 'Inter', sans-serif;
+  font-family: "Inter", sans-serif;
 }
 
 /* THE PAPER TEXTURE CLASS */
 .paper-texture {
   background-color: var(--paper);
   position: relative;
-  box-shadow: 2px 2px 15px rgba(0,0,0,0.4); 
+  box-shadow: 2px 2px 15px rgba(0, 0, 0, 0.4);
 }
 
 /* The grainy noise overlay */
@@ -40,42 +40,36 @@ body {
   --color-text: var(--ink) !important;
   --color-primary: var(--orange) !important;
   --color-selection-stroke: var(--orange) !important;
-  --color-grid: rgba(45, 42, 38, 0.08) !important; 
+  --color-grid: rgba(45, 42, 38, 0.08) !important;
 }
 
 .tl-canvas {
   background-color: var(--paper) !important;
+  --background: #ffffff;
+  --foreground: #171717;
+  --primary: #0891b2;
+  --primary-light: #06b6d4;
+  --accent: #0e7490;
 }
 
-.tl-watermark { display: none !important; }
-
-/* AUTOFILL FIX */
-input:-webkit-autofill,
-input:-webkit-autofill:hover, 
-input:-webkit-autofill:focus, 
-input:-webkit-autofill:active{
-    -webkit-box-shadow: 0 0 0 30px #F5F2E8 inset !important;
-    -webkit-text-fill-color: #2D2A26 !important;
-    transition: background-color 5000s ease-in-out 0s;
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-primary: var(--primary);
+  --color-accent: var(--accent);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
 }
 
-.cork-texture {
-  /* A lighter, more accurate raw cork color */
-  background-color: #a88356; 
-  position: relative;
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
 }
 
-.cork-texture::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  /* HOW TO TWEAK IT YOURSELF:
-    - opacity='0.18': Controls how dark/visible the fuzz is. (Try 0.25 if you want it extreme)
-    - baseFrequency='0.9': Controls the size of the grain. Higher = smaller grains.
-    - numOctaves='4': Adds more layers of detail to the noise.
-  */
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.18'/%3E%3C/svg%3E");
-  pointer-events: none;
-  mix-blend-mode: multiply;
-  z-index: 0;
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
 }
