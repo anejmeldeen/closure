@@ -1,33 +1,53 @@
 import { NextResponse } from 'next/server';
-import { findBestBackup, calculateBandwidthScore } from '@/lib/reassignment-engine';
-import { Profile, DbTask, ReassignmentProposal } from '@/types';
+import { GoogleGenerativeAI } from '@google/generative-ai'; 
+import { findBestBackup, calculateFinalAvailability } from '@/lib/reassignment-engine';
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
-    const { atRiskTasks, allProfiles }: { atRiskTasks: DbTask[], allProfiles: Profile[] } = body;
+    const { atRiskTasks, allProfiles } = await request.json();
+    const apiKey = process.env.GEMINI_API_KEY;
 
-    const proposals = atRiskTasks.map((task) => {
+    // 1. Run our Tiered Logic first (Deterministic)
+    const proposals = atRiskTasks.map((task: any) => {
       const bestMatch = findBestBackup(task, allProfiles);
-      const originalOwner = allProfiles.find(p => p.id === task.assigned_to);
-
       if (!bestMatch) return null;
 
-      // Deterministic reasoning based on your engine's logic
-      const load = (bestMatch.meeting_hours_7d + bestMatch.task_hours_7d).toFixed(1);
-      const reasoning = `${bestMatch.full_name} selected based on ${bestMatch.performance_rating}/5 performance rating and low weekly load (${load}h total).`;
-
+      const availability = calculateFinalAvailability(bestMatch).toFixed(1);
+      
       return {
         taskId: task.id,
         taskTitle: task.title,
-        originalOwnerName: originalOwner?.full_name || 'Unknown',
+        suggestedOwnerId: bestMatch.id,
         suggestedOwnerName: bestMatch.full_name,
-        reasoning: reasoning // No AI needed!
-      } as ReassignmentProposal;
-    });
+        // Default reasoning if AI fails
+        reasoning: `${bestMatch.full_name} has the highest availability (${availability}h) on the same team.`
+      };
+    }).filter(Boolean);
 
-    return NextResponse.json({ proposals: proposals.filter(p => p !== null) });
+    // 2. Try to upgrade reasoning with AI if Key is present
+    if (apiKey && proposals.length > 0) {
+      try {
+        const genAI = new GoogleGenerativeAI(apiKey);
+        const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
+
+        const prompt = `Review these reassignments for a 100-person tech dept. 
+        Provide a 1-sentence professional justification for each. 
+        Return as a JSON array of strings only: ${JSON.stringify(proposals)}`;
+
+        const result = await model.generateContent(prompt);
+        const aiJustifications = JSON.parse(result.response.text());
+
+        // Merge AI justifications into our proposals
+        proposals.forEach((p: any, i: number) => {
+          if (aiJustifications[i]) p.reasoning = aiJustifications[i];
+        });
+      } catch (aiError) {
+        console.warn("AI failed, falling back to deterministic reasoning", aiError);
+      }
+    }
+
+    return NextResponse.json({ proposals });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message || "Reassignment failed" }, { status: 500 });
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
