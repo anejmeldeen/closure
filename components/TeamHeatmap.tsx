@@ -132,7 +132,7 @@ export default function TeamHeatmap({ userIds, title = "Team Capacity Heatmap", 
             <Users size={20} /> {title}
           </h3>
           <p className="text-[10px] font-bold opacity-50 uppercase mt-1">
-            {subtitle || `Visualizing ${profiles.length} operators' overlapping schedules`}
+            {subtitle || `Visualizing ${profiles.length} users' overlapping schedules`}
           </p>
         </div>
 
