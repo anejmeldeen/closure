@@ -568,27 +568,26 @@ function DashboardContent() {
           </div>
         </div>
         <div className="flex items-center gap-6">
-          <button
-            onClick={() => setShowPremiumModal(true)}
-            className={`px-6 py-2 border-2 border-[#2D2A26] font-bold text-[10px] uppercase shadow-brutal hover:shadow-none hover:translate-x-0.5 hover:translate-y-0.5 transition-all ${
-              isPremium
-                ? "bg-[#86efac] hover:bg-[#7ee692]"
-                : "bg-[#ffbb00] hover:bg-[#ffcc22]"
-            }`}
+          <Link
+            href="/settings"
+            className="w-9 h-9 bg-gray-200 border-2 border-[#2D2A26] flex items-center justify-center text-[#2D2A26] shadow-brutal hover:shadow-none hover:translate-x-0.5 hover:translate-y-0.5 transition-all"
+            title="Settings"
           >
-            {isPremium ? "Premium" : "Upgrade"}
-          </button>
+            <Settings size={16} strokeWidth={3} />
+          </Link>
 
           <Link
             href="/profile"
-            className="w-9 h-9 bg-[#468a53] text-white border-2 border-[#2D2A26] flex items-center justify-center font-black text-[11px] uppercase shadow-brutal hover:shadow-none hover:translate-x-0.5 hover:translate-y-0.5 transition-all"
+            className="w-9 h-9 bg-[#f5f2e8] border-2 border-[#2D2A26] flex items-center justify-center shadow-brutal hover:shadow-none hover:translate-x-0.5 hover:translate-y-0.5 transition-all overflow-hidden"
             title={userProfile?.full_name || "Profile"}
           >
-            {userProfile?.full_name
-              ?.split(" ")
-              .map((n) => n[0])
-              .join("")
-              .slice(0, 2) || "ME"}
+            {userProfile && (
+              <img 
+                src={userProfile.avatar_url || `https://api.dicebear.com/7.x/pixel-art/svg?seed=${userProfile.id}`}
+                alt="Profile" 
+                className="w-full h-full object-cover p-0.5" 
+              />
+            )}
           </Link>
           <button
             onClick={async () => {
@@ -740,15 +739,12 @@ function DashboardContent() {
                     className="paper-texture bg-[#f5f2e8] border-2 border-[#2D2A26] p-6 shadow-brutal hover:shadow-none hover:translate-x-1 hover:translate-y-1 transition-all flex items-center gap-6 group"
                   >
                     <Image
-                      src={
-                        p.avatar_url ||
-                        `https://api.dicebear.com/7.x/avataaars/svg?seed=${p.id}`
-                      }
+                      src={p.avatar_url || `https://api.dicebear.com/7.x/pixel-art/svg?seed=${p.id}`}
                       alt=""
                       width={64}
                       height={64}
                       unoptimized
-                      className="bg-white border-2 border-[#2D2A26] shadow-brutal-sm rounded-sm"
+                      className="bg-white border-2 border-[#2D2A26] shadow-brutal-sm rounded-sm object-cover aspect-square"
                     />
                     <div className="flex-1 min-w-0">
                       <p className="font-black text-xl uppercase truncate group-hover:text-[#D97757] transition-colors">
@@ -1116,15 +1112,12 @@ function DashboardContent() {
                   >
                     <div className="flex items-center gap-3">
                       <Image
-                        src={
-                          p.avatar_url ||
-                          `https://api.dicebear.com/7.x/avataaars/svg?seed=${p.id}`
-                        }
+                        src={p.avatar_url || `https://api.dicebear.com/7.x/pixel-art/svg?seed=${p.id}`}
                         alt=""
                         width={32}
                         height={32}
                         unoptimized
-                        className="rounded-full border border-[#2D2A26] bg-white"
+                        className="bg-white border-2 border-[#2D2A26] shadow-brutal-sm rounded-sm object-cover aspect-square"
                       />
                       <span className="font-bold text-[11px] uppercase truncate max-w-[150px]">
                         {p.full_name}
