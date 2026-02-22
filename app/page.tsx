@@ -395,8 +395,8 @@ function DashboardContent() {
   if (loading) return <Loader />;
 
   return (
-    <div className="min-h-screen cork-texture flex flex-col font-sans text-[#2D2A26]">
-      <nav className="paper-texture bg-[#f5f2e8] border-b-2 border-[#2D2A26] px-4 sm:px-8 py-4 flex items-center justify-between sticky top-0 z-[90] shadow-md">
+    <div className="h-screen overflow-hidden cork-texture flex flex-col font-sans text-[#2D2A26]">
+      <nav className="paper-texture bg-[#f5f2e8] border-b-2 border-[#2D2A26] px-4 sm:px-8 py-4 flex items-center justify-between shrink-0 z-[90] shadow-md">
         <div className="flex items-center gap-4 md:gap-12">
           <h1 className="text-2xl font-black uppercase tracking-tighter">Closure</h1>
           <div className="hidden md:flex gap-1">
@@ -455,7 +455,7 @@ function DashboardContent() {
         </div>
       )}
 
-      <main className="flex-1 p-4 sm:p-8 md:p-12 mx-auto w-full flex flex-col lg:flex-row gap-8 lg:gap-12 relative max-w-[1600px]">
+      <main className="flex-1 overflow-y-auto p-4 sm:p-8 md:p-12 mx-auto w-full flex flex-col lg:flex-row gap-8 lg:gap-12 relative max-w-[1600px]">
         {activeTab !== "staff" && (
           <aside className="w-full lg:w-72 flex flex-col gap-10 shrink-0 z-10 animate-in slide-in-from-left-4 duration-300">
             {activeTab === "tasks" ? (
