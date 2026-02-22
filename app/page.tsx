@@ -55,8 +55,9 @@ interface DbTask {
   required_skills: string[];
   assigned_to: string | null;
   collaborators: string[];
-  status: string;
+  status: "not-started" | "in_progress" | "done";
   estimated_hours: number;
+  due_date: string | null;
 }
 
 interface Drawing {
@@ -81,7 +82,7 @@ function DashboardContent() {
 
   // App State
   const [activeTab, setActiveTab] = useState<TabType>(
-    (searchParams.get("tab") as TabType) || "staff"
+    (searchParams.get("tab") as TabType) || "staff",
   );
   const [isPremium, setIsPremium] = useState<boolean>(false);
   const [showPremiumModal, setShowPremiumModal] = useState<boolean>(false);
@@ -102,6 +103,7 @@ function DashboardContent() {
   const [boardTasks, setBoardTasks] = useState<Record<string, DbTask>>({});
   const [detailsModalOpen, setDetailsModalOpen] = useState<string | null>(null);
   const [priorityEditId, setPriorityEditId] = useState<string | null>(null);
+  const [newSkillInput, setNewSkillInput] = useState("");
 
   // UI / Modal States
   const [isCreateRoomOpen, setIsCreateRoomOpen] = useState(false);
@@ -148,7 +150,8 @@ function DashboardContent() {
 
       if (profRes.data) {
         setProfiles(profRes.data as Profile[]);
-        const myProfile = (profRes.data as Profile[]).find((p) => p.id === authUser.id) || null;
+        const myProfile =
+          (profRes.data as Profile[]).find((p) => p.id === authUser.id) || null;
         setUserProfile(myProfile);
       }
 
@@ -163,7 +166,7 @@ function DashboardContent() {
         if (joinedRooms.length > 0) setSelectedRoom(joinedRooms[0].id);
       }
 
-      // Map Tasks directly from Drawings table
+      // Map Tasks directly from Drawings table, then overlay from tasks table
       const tasksForBoards: Record<string, DbTask> = {};
 
       fetchedDrawings.forEach((board) => {
@@ -175,10 +178,28 @@ function DashboardContent() {
           required_skills: [],
           assigned_to: board.assigned_to || null,
           collaborators: board.collaborators || [],
-          status: board.completed ? "completed" : "not-started",
+          status: board.completed ? "done" : "not-started",
           estimated_hours: board.estimated_hours || 0,
+          due_date: null,
         };
       });
+
+      // Fetch persisted task data (due_date, required_skills, description, etc.)
+      const { data: savedTasks } = await supabase
+        .from("tasks")
+        .select("*")
+        .in(
+          "id",
+          fetchedDrawings.map((d) => d.id),
+        );
+      if (savedTasks) {
+        savedTasks.forEach((t: DbTask) => {
+          if (tasksForBoards[t.id]) {
+            tasksForBoards[t.id] = { ...tasksForBoards[t.id], ...t };
+          }
+        });
+      }
+
       setBoardTasks(tasksForBoards);
       setLoading(false);
     };
@@ -229,9 +250,9 @@ function DashboardContent() {
           setMessages((prev) =>
             prev.find((m) => m.id === msgWithProfile.id)
               ? prev
-              : [...prev, msgWithProfile]
+              : [...prev, msgWithProfile],
           );
-        }
+        },
       )
       .subscribe();
 
@@ -336,8 +357,8 @@ function DashboardContent() {
       drawings.map((d) =>
         d.id === editingId
           ? { ...d, name: editName, last_modified: timestamp }
-          : d
-      )
+          : d,
+      ),
     );
     setEditingId(null);
     await supabase
@@ -349,12 +370,12 @@ function DashboardContent() {
   const toggleStatus = async (
     e: MouseEvent,
     id: string,
-    currentStatus: boolean
+    currentStatus: boolean,
   ) => {
     e.stopPropagation();
     const newStatus = !currentStatus;
     setDrawings(
-      drawings.map((d) => (d.id === id ? { ...d, completed: newStatus } : d))
+      drawings.map((d) => (d.id === id ? { ...d, completed: newStatus } : d)),
     );
     await supabase
       .from("drawings")
@@ -395,7 +416,7 @@ function DashboardContent() {
 
   const updateTaskPriority = async (
     boardId: string,
-    newPriority: "Low" | "Medium" | "High" | "Critical"
+    newPriority: "Low" | "Medium" | "High" | "Critical",
   ) => {
     setBoardTasks((prev) => ({
       ...prev,
@@ -423,21 +444,82 @@ function DashboardContent() {
     if (error) alert(`Supabase Error (Hours): ${error.message}`);
   };
 
+  // Strip fields that don't belong in the tasks table before upserting
+  const toTaskPayload = (task: DbTask) => {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { collaborators, ...payload } = task as DbTask & {
+      collaborators?: string[];
+    };
+    return payload;
+  };
+
   const updateTaskDescription = async (
     boardId: string,
     description: string,
   ) => {
     const updatedTask = { ...boardTasks[boardId], description };
     setBoardTasks((prev) => ({ ...prev, [boardId]: updatedTask }));
-    await supabase.from("tasks").upsert(updatedTask);
+    await supabase.from("tasks").upsert(toTaskPayload(updatedTask));
+  };
+
+  const updateTaskStatus = async (
+    boardId: string,
+    status: DbTask["status"],
+  ) => {
+    const updatedTask = { ...boardTasks[boardId], status };
+    setBoardTasks((prev) => ({ ...prev, [boardId]: updatedTask }));
+    await supabase.from("tasks").upsert(toTaskPayload(updatedTask));
+  };
+
+  const updateTaskDueDate = async (
+    boardId: string,
+    due_date: string | null,
+  ) => {
+    const updatedTask = { ...boardTasks[boardId], due_date };
+    setBoardTasks((prev) => ({ ...prev, [boardId]: updatedTask }));
+    await supabase.from("tasks").upsert(toTaskPayload(updatedTask));
+  };
+
+  const updateTaskSkills = async (
+    boardId: string,
+    required_skills: string[],
+  ) => {
+    const updatedTask = { ...boardTasks[boardId], required_skills };
+    setBoardTasks((prev) => ({ ...prev, [boardId]: updatedTask }));
+    await supabase.from("tasks").upsert(toTaskPayload(updatedTask));
+  };
+
+  const getDueDateBadge = (due_date: string | null) => {
+    if (!due_date) return null;
+    const now = new Date();
+    const due = new Date(due_date);
+    const diffDays = Math.ceil(
+      (due.getTime() - now.getTime()) / (1000 * 60 * 60 * 24),
+    );
+    if (diffDays < 0)
+      return {
+        label: `${Math.abs(diffDays)}d overdue`,
+        color: "bg-red-600 text-white",
+      };
+    if (diffDays === 0)
+      return { label: "Due today", color: "bg-orange-500 text-white" };
+    if (diffDays <= 3)
+      return {
+        label: `${diffDays}d left`,
+        color: "bg-[#ffbb00] text-gray-900",
+      };
+    return {
+      label: `${diffDays}d left`,
+      color: "bg-white text-gray-700 border border-[#2D2A26]/30",
+    };
   };
 
   const filteredDrawings = drawings.filter((d) =>
-    d.name.toLowerCase().includes(searchQuery.toLowerCase())
+    d.name.toLowerCase().includes(searchQuery.toLowerCase()),
   );
   const incompleteDrawings = drawings.filter((d) => !d.completed);
   const addablePersonnel = profiles.filter(
-    (p) => !roomMembers.some((m) => m.id === p.id)
+    (p) => !roomMembers.some((m) => m.id === p.id),
   );
 
   if (loading) return <Loader />;
@@ -706,7 +788,7 @@ function DashboardContent() {
                   if (!task) return null;
 
                   const assignedPerson = profiles.find(
-                    (p) => p.id === task.assigned_to
+                    (p) => p.id === task.assigned_to,
                   );
                   const collaboratorsList = (task.collaborators || [])
                     .map((id) => profiles.find((p) => p.id === id))
@@ -720,7 +802,9 @@ function DashboardContent() {
                         router.push(`/board/${draw.id}?tab=whiteboard`)
                       }
                       className={`group paper-texture min-h-[24rem] border-2 border-[#2D2A26] p-8 shadow-brutal-lg hover:shadow-none hover:translate-x-1.5 hover:translate-y-1.5 transition-all cursor-pointer flex flex-col justify-between relative ${
-                        draw.completed ? "bg-[#e5e7eb] opacity-80" : "bg-[#f5f2e8]"
+                        draw.completed
+                          ? "bg-[#e5e7eb] opacity-80"
+                          : "bg-[#f5f2e8]"
                       }`}
                     >
                       <div
@@ -728,8 +812,8 @@ function DashboardContent() {
                           task.priority === "Critical"
                             ? "bg-red-600"
                             : task.priority === "High"
-                            ? "bg-orange-500"
-                            : "bg-[#ffbb00]"
+                              ? "bg-orange-500"
+                              : "bg-[#ffbb00]"
                         }`}
                       ></div>
 
@@ -742,9 +826,21 @@ function DashboardContent() {
                       )}
 
                       <div className="flex justify-between items-start mb-4">
-                        <span className="bg-[#2D2A26] text-white px-2 py-0.5 font-mono text-[9px] font-bold tracking-tighter">
-                          {new Date(draw.last_modified).toLocaleDateString()}
-                        </span>
+                        <div className="flex flex-col gap-1">
+                          <span className="bg-[#2D2A26] text-white px-2 py-0.5 font-mono text-[9px] font-bold tracking-tighter">
+                            {new Date(draw.last_modified).toLocaleDateString()}
+                          </span>
+                          {(() => {
+                            const badge = getDueDateBadge(task.due_date);
+                            return badge ? (
+                              <span
+                                className={`px-2 py-0.5 font-black text-[9px] uppercase tracking-tight ${badge.color}`}
+                              >
+                                {badge.label}
+                              </span>
+                            ) : null;
+                          })()}
+                        </div>
                         <button
                           onClick={(e) =>
                             toggleStatus(e, draw.id, draw.completed)
@@ -781,6 +877,11 @@ function DashboardContent() {
                             {draw.name}
                           </h3>
                         )}
+                        {task.description && task.description !== draw.name && (
+                          <p className="text-[11px] font-medium text-gray-600 leading-snug line-clamp-2">
+                            {task.description}
+                          </p>
+                        )}
                       </div>
 
                       <div className="mb-4 p-3 bg-white/40 rounded border border-[#2D2A26]/20">
@@ -816,6 +917,55 @@ function DashboardContent() {
                         )}
                       </div>
 
+                      {/* Required Skills */}
+                      {(task.required_skills?.length ?? 0) > 0 && (
+                        <div className="mb-4">
+                          <p className="text-[8px] font-bold uppercase opacity-60 mb-1.5">
+                            Skills Needed
+                          </p>
+                          <div className="flex flex-wrap gap-1.5">
+                            {task.required_skills.map((skill) => (
+                              <span
+                                key={skill}
+                                className="px-2 py-0.5 bg-[#bae6fd] border border-[#2D2A26]/40 text-[8px] font-black uppercase tracking-wide text-gray-800"
+                              >
+                                {skill}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Status Toggle */}
+                      <div className="flex gap-1.5 mb-4 relative z-20">
+                        {(["not-started", "in_progress", "done"] as const).map(
+                          (s) => (
+                            <button
+                              key={s}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                updateTaskStatus(draw.id, s);
+                              }}
+                              className={`flex-1 py-1.5 border-2 border-[#2D2A26] font-black text-[8px] uppercase tracking-tight transition-all ${
+                                task.status === s
+                                  ? s === "done"
+                                    ? "bg-[#86efac] text-gray-900"
+                                    : s === "in_progress"
+                                      ? "bg-[#ffbb00] text-gray-900"
+                                      : "bg-[#2D2A26] text-white"
+                                  : "bg-white/60 opacity-40 hover:opacity-70"
+                              }`}
+                            >
+                              {s === "not-started"
+                                ? "Todo"
+                                : s === "in_progress"
+                                  ? "In Prog"
+                                  : "Done"}
+                            </button>
+                          ),
+                        )}
+                      </div>
+
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
@@ -837,8 +987,8 @@ function DashboardContent() {
                               task.priority === "Critical"
                                 ? "bg-red-600 text-white"
                                 : task.priority === "High"
-                                ? "bg-orange-500 text-white"
-                                : "bg-[#ffbb00] text-gray-900"
+                                  ? "bg-orange-500 text-white"
+                                  : "bg-[#ffbb00] text-gray-900"
                             }`}
                           >
                             {task.priority}
@@ -1094,6 +1244,91 @@ function DashboardContent() {
               />
             </div>
 
+            <div className="mb-3 pb-3 border-b-2 border-[#2D2A26]">
+              <p className="text-[10px] font-bold mb-1.5 uppercase opacity-60">
+                Due Date
+              </p>
+              <input
+                type="date"
+                value={boardTasks[detailsModalOpen]?.due_date || ""}
+                onChange={(e) =>
+                  updateTaskDueDate(detailsModalOpen, e.target.value || null)
+                }
+                className="w-full p-2 border-2 border-[#2D2A26] font-black text-base bg-white focus:outline-none"
+              />
+            </div>
+
+            <div className="mb-3 pb-3 border-b-2 border-[#2D2A26]">
+              <p className="text-[10px] font-bold mb-1.5 uppercase opacity-60">
+                Required Skills
+              </p>
+              <div className="flex flex-wrap gap-1.5 mb-2">
+                {(boardTasks[detailsModalOpen]?.required_skills || []).map(
+                  (skill) => (
+                    <span
+                      key={skill}
+                      className="flex items-center gap-1 px-2 py-0.5 bg-[#bae6fd] border border-[#2D2A26]/40 text-[8px] font-black uppercase"
+                    >
+                      {skill}
+                      <button
+                        onClick={() =>
+                          updateTaskSkills(
+                            detailsModalOpen,
+                            (
+                              boardTasks[detailsModalOpen]?.required_skills ||
+                              []
+                            ).filter((s) => s !== skill),
+                          )
+                        }
+                        className="ml-0.5 hover:text-red-600 font-black text-[10px] leading-none"
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ),
+                )}
+              </div>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={newSkillInput}
+                  onChange={(e) => setNewSkillInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && newSkillInput.trim()) {
+                      const existing =
+                        boardTasks[detailsModalOpen]?.required_skills || [];
+                      if (!existing.includes(newSkillInput.trim())) {
+                        updateTaskSkills(detailsModalOpen, [
+                          ...existing,
+                          newSkillInput.trim(),
+                        ]);
+                      }
+                      setNewSkillInput("");
+                    }
+                  }}
+                  placeholder="Add skill, press Enter"
+                  className="flex-1 p-2 border-2 border-[#2D2A26] font-bold text-xs bg-white focus:outline-none"
+                />
+                <button
+                  onClick={() => {
+                    if (!newSkillInput.trim()) return;
+                    const existing =
+                      boardTasks[detailsModalOpen]?.required_skills || [];
+                    if (!existing.includes(newSkillInput.trim())) {
+                      updateTaskSkills(detailsModalOpen, [
+                        ...existing,
+                        newSkillInput.trim(),
+                      ]);
+                    }
+                    setNewSkillInput("");
+                  }}
+                  className="px-3 py-2 bg-[#2D2A26] text-white font-black text-[9px] uppercase border-2 border-[#2D2A26]"
+                >
+                  Add
+                </button>
+              </div>
+            </div>
+
             <p className="text-[10px] font-bold mb-2 uppercase opacity-60">
               Task Roster
             </p>
@@ -1102,7 +1337,7 @@ function DashboardContent() {
                 const task = boardTasks[detailsModalOpen];
                 const isPrimary = task?.assigned_to === employee.id;
                 const isCollaborator = task?.collaborators?.includes(
-                  employee.id
+                  employee.id,
                 );
 
                 return (
@@ -1154,8 +1389,8 @@ function DashboardContent() {
                           isPrimary
                             ? "opacity-50 cursor-not-allowed"
                             : isCollaborator
-                            ? "bg-[#86efac] text-gray-900"
-                            : "bg-white hover:bg-[#ffbb00]"
+                              ? "bg-[#86efac] text-gray-900"
+                              : "bg-white hover:bg-[#ffbb00]"
                         }`}
                       >
                         Add
@@ -1200,8 +1435,8 @@ function DashboardContent() {
                         ? priority === "Critical"
                           ? "bg-red-600 text-white"
                           : priority === "High"
-                          ? "bg-orange-500 text-white"
-                          : "bg-[#ffbb00] text-gray-900"
+                            ? "bg-orange-500 text-white"
+                            : "bg-[#ffbb00] text-gray-900"
                         : "bg-white"
                     }`}
                   >
@@ -1212,7 +1447,7 @@ function DashboardContent() {
                       )}
                     </div>
                   </button>
-                )
+                ),
               )}
             </div>
           </div>
