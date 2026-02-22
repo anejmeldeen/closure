@@ -30,7 +30,6 @@ export default function ProfilePage() {
   const [savedRole, setSavedRole] = useState(false);
 
   // --- Week Tracking State ---
-  // weekStartsOn: 1 forces Monday to be the start of the week
   const [currentWeek, setCurrentWeek] = useState(
     startOfWeek(new Date(), { weekStartsOn: 1 }),
   );
@@ -41,6 +40,7 @@ export default function ProfilePage() {
 
   // --- Click & Drag Calendar State ---
   const [busySlots, setBusySlots] = useState<Set<string>>(new Set());
+  const [daysOff, setDaysOff] = useState<Set<string>>(new Set()); // NEW: Days off state
   const [isDragging, setIsDragging] = useState(false);
   const [dragMode, setDragMode] = useState<"add" | "remove" | null>(null);
   const [assignedTasks, setAssignedTasks] = useState<any[]>([]);
@@ -78,25 +78,50 @@ export default function ProfilePage() {
     load();
   }, [router]);
 
-  // Load Slots for Specific Week
+  // Load Slots & Days Off for Specific Week
+  // Load Slots & Days Off for Specific Week
   useEffect(() => {
     const fetchSlots = async () => {
       if (!profile?.id) return;
       const { data, error } = await supabase
         .from("availability_slots")
-        .select("busy_slots")
+        .select("busy_slots, days_off")
         .eq("profile_id", profile.id)
         .eq("week_start_date", weekKey)
-        .maybeSingle(); // maybeSingle prevents console errors if no data exists for this week yet
+        .maybeSingle();
 
-      if (!error && data && data.busy_slots) {
-        setBusySlots(new Set(data.busy_slots as string[]));
+      if (!error && data) {
+        setBusySlots(new Set(data.busy_slots as string[] || []));
+        // If data.days_off is null (legacy row), default to Sat/Sun. 
+        // If it's an empty array [] (they work weekends), respect it!
+        if (data.days_off === null) {
+          setDaysOff(new Set(["Sat", "Sun"]));
+        } else {
+          setDaysOff(new Set(data.days_off as string[]));
+        }
       } else {
+        // Brand new week with no DB row yet: Default to weekends off
         setBusySlots(new Set());
+        setDaysOff(new Set(["Sat", "Sun"]));
       }
     };
     if (profile?.id) fetchSlots();
   }, [profile?.id, weekKey]);
+
+  // Unified Save Function for both Busy Slots and Days Off
+  const saveAvailability = async (newBusy: Set<string>, newDaysOff: Set<string>) => {
+    if (!profile?.id) return;
+    const { error } = await supabase.from("availability_slots").upsert(
+      {
+        profile_id: profile.id,
+        week_start_date: weekKey,
+        busy_slots: Array.from(newBusy),
+        days_off: Array.from(newDaysOff),
+      },
+      { onConflict: "profile_id,week_start_date" },
+    );
+    if (error) console.error("Database save failed:", error.message);
+  };
 
   // Save on Drag End
   useEffect(() => {
@@ -104,24 +129,12 @@ export default function ProfilePage() {
       if (isDragging) {
         setIsDragging(false);
         setDragMode(null);
-
-        if (profile?.id) {
-          const { error } = await supabase.from("availability_slots").upsert(
-            {
-              profile_id: profile.id,
-              week_start_date: weekKey,
-              busy_slots: Array.from(busySlots),
-            },
-            { onConflict: "profile_id,week_start_date" },
-          );
-
-          if (error) console.error("Database save failed:", error.message);
-        }
+        await saveAvailability(busySlots, daysOff);
       }
     };
     window.addEventListener("mouseup", handleGlobalMouseUp);
     return () => window.removeEventListener("mouseup", handleGlobalMouseUp);
-  }, [isDragging, busySlots, profile?.id, weekKey]);
+  }, [isDragging, busySlots, daysOff, profile?.id, weekKey]);
 
   // Drag Interactions
   const updateSlot = (slotKey: string, mode: "add" | "remove") => {
@@ -144,7 +157,19 @@ export default function ProfilePage() {
     if (isDragging && dragMode) updateSlot(`${day}-${hour}`, dragMode);
   };
 
-  // Sync Google Calendar (Hits the API route we will build next)
+  // NEW: Day Off Checkbox Handler
+  const toggleDayOff = async (dayName: string) => {
+    const newDaysOff = new Set(daysOff);
+    if (newDaysOff.has(dayName)) {
+      newDaysOff.delete(dayName);
+    } else {
+      newDaysOff.add(dayName);
+    }
+    setDaysOff(newDaysOff);
+    await saveAvailability(busySlots, newDaysOff); // Instantly save to DB
+  };
+
+  // Sync Google Calendar
   const handleSync = async () => {
     if (!profile?.id) return;
     setSyncing(true);
@@ -195,7 +220,7 @@ export default function ProfilePage() {
 
   return (
     <>
-      <nav className="bg-[#f5f2e8] border-b-2 border-[#2D2A26] px-8 py-4 flex items-center justify-between fixed top-0 left-0 right-0 w-full z-[9999] shadow-md">
+      <nav className="bg-[#f5f2e8] border-b-2 border-[#2D2A26] px-4 sm:px-8 py-4 flex items-center justify-between fixed top-0 left-0 right-0 w-full z-[9999] shadow-md">
         <div className="flex items-center gap-6">
           <Link
             href="/"
@@ -210,10 +235,9 @@ export default function ProfilePage() {
       </nav>
 
       <div className="min-h-screen cork-texture font-sans text-[#2D2A26] pt-[75px]">
-        <main className="max-w-4xl mx-auto px-8 py-12 space-y-8">
+        <main className="max-w-4xl mx-auto px-4 sm:px-8 py-8 md:py-12 space-y-8">
           {/* Hero Card */}
-          <div className="paper-texture border-2 border-[#2D2A26] shadow-brutal-lg p-10 flex flex-col sm:flex-row items-start sm:items-center gap-8">
-            {/* STATIC AVATAR */}
+          <div className="paper-texture border-2 border-[#2D2A26] shadow-brutal-lg p-6 sm:p-10 flex flex-col sm:flex-row items-start sm:items-center gap-8">
             <div className="relative w-24 h-24 bg-[#f5f2e8] border-4 border-[#2D2A26] shadow-brutal shrink-0 flex items-center justify-center overflow-hidden">
               <img
                 src={
@@ -277,7 +301,7 @@ export default function ProfilePage() {
           </div>
 
           {/* --- Editable Availability Grid --- */}
-          <div className="paper-texture border-2 border-[#2D2A26] shadow-brutal p-8 select-none">
+          <div className="paper-texture border-2 border-[#2D2A26] shadow-brutal p-4 sm:p-8 select-none">
             <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between mb-6 pb-4 border-b-2 border-[#2D2A26] gap-4">
               <div>
                 <h2 className="font-black text-xs uppercase tracking-widest">
@@ -289,7 +313,6 @@ export default function ProfilePage() {
               </div>
 
               <div className="flex flex-wrap items-center gap-3">
-                {/* Week Switcher */}
                 <div className="flex items-center border-2 border-[#2D2A26] bg-[#f5f2e8] shadow-brutal-sm">
                   <button
                     onClick={() => setCurrentWeek(subWeeks(currentWeek, 1))}
@@ -309,7 +332,6 @@ export default function ProfilePage() {
                   </button>
                 </div>
 
-                {/* Sync Button */}
                 <button
                   onClick={handleSync}
                   disabled={syncing}
@@ -337,13 +359,23 @@ export default function ProfilePage() {
                   <div className="border-r-2 border-b-2 border-[#2D2A26] bg-[#f5f2e8] p-2"></div>
                   {Array.from({ length: 7 }).map((_, i) => {
                     const date = addDays(currentWeek, i);
+                    const dayName = format(date, "EEE");
+                    
                     return (
                       <div
                         key={i}
-                        className="border-r-2 border-b-2 border-[#2D2A26] bg-[#f5f2e8] p-2 text-center flex flex-col items-center justify-center"
+                        className="border-r-2 border-b-2 border-[#2D2A26] bg-[#f5f2e8] p-2 text-center flex flex-col items-center justify-center relative group"
                       >
+                        {/* Day Off Checkbox */}
+                        <input
+                          type="checkbox"
+                          checked={daysOff.has(dayName)}
+                          onChange={() => toggleDayOff(dayName)}
+                          className="absolute top-2 left-2 w-3 h-3 cursor-pointer accent-[#2D2A26]"
+                          title={`Mark ${dayName} as Day Off`}
+                        />
                         <span className="font-black text-[10px] uppercase">
-                          {format(date, "EEE")}
+                          {dayName}
                         </span>
                         <span className="font-bold text-lg leading-none mt-1">
                           {format(date, "d")}
@@ -367,18 +399,26 @@ export default function ProfilePage() {
                       const date = addDays(currentWeek, i);
                       const dayName = format(date, "EEE");
                       const slotKey = `${dayName}-${hour}`;
+                      
+                      const isDayOff = daysOff.has(dayName);
                       const isBusy = busySlots.has(slotKey);
+
+                      // Determine cell background styling based on priority
+                      let cellClasses = "border-r-2 border-b-2 border-[#2D2A26] h-10 transition-colors ";
+                      if (isDayOff) {
+                        cellClasses += "bg-[#93c5fd] cursor-not-allowed"; // Blue overlay for Day Off
+                      } else if (isBusy) {
+                        cellClasses += "bg-[#ffbb00] cursor-pointer";
+                      } else {
+                        cellClasses += "bg-white hover:bg-[#f5f2e8] cursor-pointer";
+                      }
 
                       return (
                         <div
                           key={slotKey}
-                          onMouseDown={() => handleMouseDown(dayName, hour)}
-                          onMouseEnter={() => handleMouseEnter(dayName, hour)}
-                          className={`border-r-2 border-b-2 border-[#2D2A26] h-10 cursor-pointer transition-colors ${
-                            isBusy
-                              ? "bg-[#ffbb00]"
-                              : "bg-white hover:bg-[#f5f2e8]"
-                          }`}
+                          onMouseDown={() => !isDayOff && handleMouseDown(dayName, hour)}
+                          onMouseEnter={() => !isDayOff && handleMouseEnter(dayName, hour)}
+                          className={cellClasses}
                         />
                       );
                     })}
@@ -386,6 +426,7 @@ export default function ProfilePage() {
                 ))}
               </div>
 
+              {/* Legend */}
               <div className="flex items-center gap-4 mt-4">
                 <div className="flex items-center gap-2">
                   <div className="w-3 h-3 bg-white border-2 border-[#2D2A26]" />
@@ -399,9 +440,16 @@ export default function ProfilePage() {
                     Busy
                   </span>
                 </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 bg-[#93c5fd] border-2 border-[#2D2A26]" />
+                  <span className="text-[9px] font-black uppercase opacity-60">
+                    Day Off
+                  </span>
+                </div>
               </div>
             </div>
           </div>
+          
           {/* --- Assigned Tasks --- */}
           {assignedTasks.length > 0 && (
             <div className="paper-texture border-2 border-[#2D2A26] shadow-brutal p-8">
