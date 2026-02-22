@@ -20,6 +20,7 @@ export default function ProfilePage() {
   const [savedRole, setSavedRole] = useState(false);
 
   // --- Week Tracking State ---
+  // weekStartsOn: 1 forces Monday to be the start of the week
   const [currentWeek, setCurrentWeek] = useState(startOfWeek(new Date(), { weekStartsOn: 1 }));
   const [syncing, setSyncing] = useState(false);
   
@@ -31,7 +32,7 @@ export default function ProfilePage() {
   const [isDragging, setIsDragging] = useState(false);
   const [dragMode, setDragMode] = useState<'add' | 'remove' | null>(null);
 
-  // Load Profile
+  // Load Profile Data
   useEffect(() => {
     const load = async () => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -52,15 +53,15 @@ export default function ProfilePage() {
   useEffect(() => {
     const fetchSlots = async () => {
       if (!profile?.id) return;
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("availability_slots")
         .select("busy_slots")
         .eq("profile_id", profile.id)
         .eq("week_start_date", weekKey)
-        .single();
+        .maybeSingle(); // maybeSingle prevents console errors if no data exists for this week yet
 
-      if (data && data.busy_slots) {
-        setBusySlots(new Set(data.busy_slots));
+      if (!error && data && data.busy_slots) {
+        setBusySlots(new Set(data.busy_slots as string[]));
       } else {
         setBusySlots(new Set());
       }
@@ -81,7 +82,8 @@ export default function ProfilePage() {
             week_start_date: weekKey,
             busy_slots: Array.from(busySlots),
           }, { onConflict: 'profile_id,week_start_date' });
-          if (error) console.error("Save failed:", error.message);
+          
+          if (error) console.error("Database save failed:", error.message);
         }
       }
     };
@@ -110,7 +112,7 @@ export default function ProfilePage() {
     if (isDragging && dragMode) updateSlot(`${day}-${hour}`, dragMode);
   };
 
-  // Sync Google Calendar
+  // Sync Google Calendar (Hits the API route we will build next)
   const handleSync = async () => {
     if (!profile?.id) return;
     setSyncing(true);

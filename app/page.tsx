@@ -27,7 +27,7 @@ import {
 } from "lucide-react";
 
 import { PremiumPaymentFlow } from "./premium-payment";
-import AvailabilityCalendar from "@/components/AvailabilityCalendar";
+import TeamHeatmap from "@/components/TeamHeatmap"; // NEW: Imported the heatmap
 import Loader from "@/app/board/[id]/components/Loader";
 import Image from "next/image";
 import type { Profile } from "@/types/index";
@@ -336,10 +336,8 @@ function DashboardContent() {
     }
 
     if (data) {
-      // Add to drawings list at the top
       setDrawings(prev => [data as Drawing, ...prev]);
 
-      // Initialize the task mapping so 'Manage Tasks' works immediately
       setBoardTasks(prev => ({
         ...prev,
         [data.id]: {
@@ -463,15 +461,6 @@ function DashboardContent() {
       .update({ estimated_hours: hours })
       .eq("id", boardId);
     if (error) alert(`Supabase Error (Hours): ${error.message}`);
-  };
-
-  // Strip fields that don't belong in the tasks table before upserting
-  const toTaskPayload = (task: DbTask) => {
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { collaborators, ...payload } = task as DbTask & {
-      collaborators?: string[];
-    };
-    return payload;
   };
 
   const updateBoardName = async (boardId: string, newName: string) => {
@@ -1065,6 +1054,42 @@ function DashboardContent() {
         </section>
       </main>
 
+      {/* --- PULL-OUT HEATMAP DRAWER --- */}
+      {isCalendarOpen && (
+        <div
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] transition-opacity"
+          onClick={() => setIsCalendarOpen(false)}
+        />
+      )}
+
+      <div
+        className={`fixed top-0 right-0 h-full w-full max-w-3xl bg-[#f5f2e8] shadow-brutal-lg border-l-4 border-[#2D2A26] z-[110] transform transition-transform duration-300 ease-in-out ${
+          isCalendarOpen ? "translate-x-0" : "translate-x-full"
+        }`}
+      >
+        <div className="h-full flex flex-col paper-texture">
+          <div className="flex justify-between items-center p-8 border-b-4 border-[#2D2A26] bg-white">
+            <h2 className="text-3xl font-black uppercase italic tracking-tighter flex items-center gap-3">
+              <Calendar size={28} strokeWidth={3} />
+              Capacity Overview
+            </h2>
+            <button
+              onClick={() => setIsCalendarOpen(false)}
+              className="w-10 h-10 border-2 border-[#2D2A26] shadow-brutal-sm hover:translate-y-0.5 hover:shadow-none transition-all bg-white flex items-center justify-center"
+            >
+              <X size={20} strokeWidth={3} />
+            </button>
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-8 custom-scrollbar bg-[#f5f2e8]">
+            {/* Renders the Heatmap component here! */}
+            <TeamHeatmap /> 
+          </div>
+        </div>
+      </div>
+      {/* ---------------------------------- */}
+
+
       {/* MODALS */}
       {isCreateRoomOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4">
@@ -1181,7 +1206,6 @@ function DashboardContent() {
                   </div>
                 </div>
 
-                {/* RIGHT COLUMN */}
                 {/* RIGHT COLUMN */}
                 <div className="space-y-6">
                   <div className="grid grid-cols-3 gap-4">

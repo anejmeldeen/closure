@@ -37,15 +37,15 @@ export default function EmployeePage({ params }: { params: Promise<{ id: string 
   // Load Availability for Specific Week
   useEffect(() => {
     const fetchSlots = async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("availability_slots")
         .select("busy_slots")
         .eq("profile_id", id)
         .eq("week_start_date", weekKey)
-        .single();
+        .maybeSingle();
 
-      if (data && data.busy_slots) {
-        setBusySlots(new Set(data.busy_slots));
+      if (!error && data && data.busy_slots) {
+        setBusySlots(new Set(data.busy_slots as string[]));
       } else {
         setBusySlots(new Set());
       }
