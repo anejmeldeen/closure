@@ -71,6 +71,10 @@ interface Drawing {
   assigned_to?: string | null;
   collaborators?: string[];
   estimated_hours?: number;
+  description?: string;
+  status?: "not-started" | "in_progress" | "done";
+  due_date?: string | null;
+  required_skills?: string[];
 }
 
 type TabType = "staff" | "whiteboard" | "messaging";
@@ -166,39 +170,23 @@ function DashboardContent() {
         if (joinedRooms.length > 0) setSelectedRoom(joinedRooms[0].id);
       }
 
-      // Map Tasks directly from Drawings table, then overlay from tasks table
+      // Map everything DIRECTLY from the drawings table
       const tasksForBoards: Record<string, DbTask> = {};
 
       fetchedDrawings.forEach((board) => {
         tasksForBoards[board.id] = {
           id: board.id,
           title: board.name,
-          description: board.name,
+          description: board.description || "",
           priority: board.priority || "Low",
-          required_skills: [],
+          required_skills: board.required_skills || [],
           assigned_to: board.assigned_to || null,
           collaborators: board.collaborators || [],
-          status: board.completed ? "done" : "not-started",
+          status: board.status || (board.completed ? "done" : "not-started"),
           estimated_hours: board.estimated_hours || 0,
-          due_date: null,
+          due_date: board.due_date || null,
         };
       });
-
-      // Fetch persisted task data (due_date, required_skills, description, etc.)
-      const { data: savedTasks } = await supabase
-        .from("tasks")
-        .select("*")
-        .in(
-          "id",
-          fetchedDrawings.map((d) => d.id),
-        );
-      if (savedTasks) {
-        savedTasks.forEach((t: DbTask) => {
-          if (tasksForBoards[t.id]) {
-            tasksForBoards[t.id] = { ...tasksForBoards[t.id], ...t };
-          }
-        });
-      }
 
       setBoardTasks(tasksForBoards);
       setLoading(false);
@@ -327,12 +315,46 @@ function DashboardContent() {
   // WHITEBOARD HANDLERS
   const createNewDrawing = async () => {
     if (!user) return;
-    const { data } = await supabase
-      .from("drawings")
-      .insert({ user_id: user.id, name: "UNTITLED_PROJECT" })
+    
+    const { data, error } = await supabase
+      .from('drawings')
+      .insert({ 
+        user_id: user.id, 
+        name: 'UNTITLED_PROJECT',
+        priority: 'Low',
+        estimated_hours: 0,
+        collaborators: [],
+        completed: false,
+        last_modified: new Date().toISOString()
+      })
       .select()
       .single();
-    if (data) router.push(`/board/${data.id}?tab=whiteboard`);
+
+    if (error) {
+      alert("Error creating board: " + error.message);
+      return;
+    }
+
+    if (data) {
+      // Add to drawings list at the top
+      setDrawings(prev => [data as Drawing, ...prev]);
+
+      // Initialize the task mapping so 'Manage Tasks' works immediately
+      setBoardTasks(prev => ({
+        ...prev,
+        [data.id]: {
+          id: data.id,
+          title: data.name,
+          description: data.name,
+          priority: "Low",
+          required_skills: [],
+          assigned_to: null,
+          collaborators: [],
+          status: "not-started",
+          estimated_hours: 0,
+        }
+      }));
+    }
   };
 
   const executeDelete = async () => {
@@ -384,33 +406,32 @@ function DashboardContent() {
   };
 
   // TASK LOGIC WITH FORCED ALERTS (Saving directly to drawings)
-  const addCollaboratorToTask = async (boardId: string, employeeId: string) => {
+  const toggleCollaborator = async (boardId: string, employeeId: string) => {
     const task = boardTasks[boardId];
-    const newCollabs = task.collaborators?.includes(employeeId)
-      ? task.collaborators
+    const isCollab = task.collaborators?.includes(employeeId);
+    const newCollabs = isCollab
+      ? task.collaborators.filter((id) => id !== employeeId)
       : [...(task.collaborators || []), employeeId];
+      
     setBoardTasks((prev) => ({
       ...prev,
       [boardId]: { ...task, collaborators: newCollabs },
     }));
 
-    const { error } = await supabase
-      .from("drawings")
-      .update({ collaborators: newCollabs })
-      .eq("id", boardId);
+    const { error } = await supabase.from("drawings").update({ collaborators: newCollabs }).eq("id", boardId);
     if (error) alert(`Supabase Error (Collaborators): ${error.message}`);
   };
 
-  const assignPrimaryPerson = async (boardId: string, employeeId: string) => {
+  const togglePrimaryPerson = async (boardId: string, employeeId: string) => {
+    const current = boardTasks[boardId].assigned_to;
+    const newAssigned = current === employeeId ? null : employeeId;
+    
     setBoardTasks((prev) => ({
       ...prev,
-      [boardId]: { ...prev[boardId], assigned_to: employeeId },
+      [boardId]: { ...prev[boardId], assigned_to: newAssigned },
     }));
 
-    const { error } = await supabase
-      .from("drawings")
-      .update({ assigned_to: employeeId })
-      .eq("id", boardId);
+    const { error } = await supabase.from("drawings").update({ assigned_to: newAssigned }).eq("id", boardId);
     if (error) alert(`Supabase Error (Assign): ${error.message}`);
   };
 
@@ -453,40 +474,36 @@ function DashboardContent() {
     return payload;
   };
 
-  const updateTaskDescription = async (
-    boardId: string,
-    description: string,
-  ) => {
-    const updatedTask = { ...boardTasks[boardId], description };
-    setBoardTasks((prev) => ({ ...prev, [boardId]: updatedTask }));
-    await supabase.from("tasks").upsert(toTaskPayload(updatedTask));
+  const updateBoardName = async (boardId: string, newName: string) => {
+    setDrawings(drawings.map(d => d.id === boardId ? { ...d, name: newName } : d));
+    setBoardTasks(prev => ({ ...prev, [boardId]: { ...prev[boardId], title: newName } }));
+    await supabase.from('drawings').update({ name: newName }).eq('id', boardId);
   };
 
-  const updateTaskStatus = async (
-    boardId: string,
-    status: DbTask["status"],
-  ) => {
-    const updatedTask = { ...boardTasks[boardId], status };
-    setBoardTasks((prev) => ({ ...prev, [boardId]: updatedTask }));
-    await supabase.from("tasks").upsert(toTaskPayload(updatedTask));
+  const updateTaskDescription = async (boardId: string, description: string) => {
+    setBoardTasks((prev) => ({ ...prev, [boardId]: { ...prev[boardId], description } }));
+    const { error } = await supabase.from("drawings").update({ description }).eq("id", boardId);
+    if (error) alert(`Supabase Error (Description): ${error.message}`);
   };
 
-  const updateTaskDueDate = async (
-    boardId: string,
-    due_date: string | null,
-  ) => {
-    const updatedTask = { ...boardTasks[boardId], due_date };
-    setBoardTasks((prev) => ({ ...prev, [boardId]: updatedTask }));
-    await supabase.from("tasks").upsert(toTaskPayload(updatedTask));
+  const updateTaskStatus = async (boardId: string, status: DbTask["status"]) => {
+    const completed = status === "done";
+    setBoardTasks((prev) => ({ ...prev, [boardId]: { ...prev[boardId], status } }));
+    setDrawings(drawings.map(d => d.id === boardId ? { ...d, completed } : d)); // Sync the top right checkbox!
+    const { error } = await supabase.from("drawings").update({ status, completed }).eq("id", boardId);
+    if (error) alert(`Supabase Error (Status): ${error.message}`);
   };
 
-  const updateTaskSkills = async (
-    boardId: string,
-    required_skills: string[],
-  ) => {
-    const updatedTask = { ...boardTasks[boardId], required_skills };
-    setBoardTasks((prev) => ({ ...prev, [boardId]: updatedTask }));
-    await supabase.from("tasks").upsert(toTaskPayload(updatedTask));
+  const updateTaskDueDate = async (boardId: string, due_date: string | null) => {
+    setBoardTasks((prev) => ({ ...prev, [boardId]: { ...prev[boardId], due_date } }));
+    const { error } = await supabase.from("drawings").update({ due_date }).eq("id", boardId);
+    if (error) alert(`Supabase Error (DueDate): ${error.message}`);
+  };
+
+  const updateTaskSkills = async (boardId: string, required_skills: string[]) => {
+    setBoardTasks((prev) => ({ ...prev, [boardId]: { ...prev[boardId], required_skills } }));
+    const { error } = await supabase.from("drawings").update({ required_skills }).eq("id", boardId);
+    if (error) alert(`Supabase Error (Skills): ${error.message}`);
   };
 
   const getDueDateBadge = (due_date: string | null) => {
@@ -801,7 +818,7 @@ function DashboardContent() {
                         editingId !== draw.id &&
                         router.push(`/board/${draw.id}?tab=whiteboard`)
                       }
-                      className={`group paper-texture min-h-[24rem] border-2 border-[#2D2A26] p-8 shadow-brutal-lg hover:shadow-none hover:translate-x-1.5 hover:translate-y-1.5 transition-all cursor-pointer flex flex-col justify-between relative ${
+                      className={`group paper-texture min-h-[24rem] border-2 border-[#2D2A26] p-8 shadow-brutal-lg hover:shadow-none hover:translate-x-1.5 hover:translate-y-1.5 transition-all cursor-pointer flex flex-col justify-between relative animate-in zoom-in-95 fade-in duration-500 slide-in-from-top-2 ${
                         draw.completed
                           ? "bg-[#e5e7eb] opacity-80"
                           : "bg-[#f5f2e8]"
@@ -858,25 +875,13 @@ function DashboardContent() {
                       </div>
 
                       <div className="mb-4">
-                        {editingId === draw.id ? (
-                          <input
-                            autoFocus
-                            className="bg-transparent border-b-4 border-[#2D2A26] text-xl font-black outline-none uppercase w-full tracking-tighter relative z-20"
-                            value={editName}
-                            onChange={(e) => setEditName(e.target.value)}
-                            onClick={(e) => e.stopPropagation()}
-                            onKeyDown={(e) => e.key === "Enter" && saveRename()}
-                            onBlur={saveRename}
-                          />
-                        ) : (
-                          <h3
-                            className={`text-xl font-black leading-tight uppercase tracking-tighter mb-2 ${
-                              draw.completed ? "line-through opacity-40" : ""
-                            }`}
-                          >
-                            {draw.name}
-                          </h3>
-                        )}
+                        <h3
+                          className={`text-xl font-black leading-tight uppercase tracking-tighter mb-2 ${
+                            draw.completed ? "line-through opacity-40" : ""
+                          }`}
+                        >
+                          {draw.name}
+                        </h3>
                         {task.description && task.description !== draw.name && (
                           <p className="text-[11px] font-medium text-gray-600 leading-snug line-clamp-2">
                             {task.description}
@@ -936,46 +941,6 @@ function DashboardContent() {
                         </div>
                       )}
 
-                      {/* Status Toggle */}
-                      <div className="flex gap-1.5 mb-4 relative z-20">
-                        {(["not-started", "in_progress", "done"] as const).map(
-                          (s) => (
-                            <button
-                              key={s}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                updateTaskStatus(draw.id, s);
-                              }}
-                              className={`flex-1 py-1.5 border-2 border-[#2D2A26] font-black text-[8px] uppercase tracking-tight transition-all ${
-                                task.status === s
-                                  ? s === "done"
-                                    ? "bg-[#86efac] text-gray-900"
-                                    : s === "in_progress"
-                                      ? "bg-[#ffbb00] text-gray-900"
-                                      : "bg-[#2D2A26] text-white"
-                                  : "bg-white/60 opacity-40 hover:opacity-70"
-                              }`}
-                            >
-                              {s === "not-started"
-                                ? "Todo"
-                                : s === "in_progress"
-                                  ? "In Prog"
-                                  : "Done"}
-                            </button>
-                          ),
-                        )}
-                      </div>
-
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setDetailsModalOpen(draw.id);
-                        }}
-                        className="w-full py-2 bg-[#2D2A26] text-white border-2 border-[#2D2A26] font-black text-[9px] uppercase tracking-widest shadow-brutal-sm hover:translate-y-0.5 hover:shadow-none transition-all mb-4 relative z-20"
-                      >
-                        Manage Tasks
-                      </button>
-
                       <div className="flex items-center justify-between transition-all pt-4 border-t-2 border-[#2D2A26]/10 relative z-20">
                         <div className="flex items-center gap-3">
                           <button
@@ -1001,12 +966,11 @@ function DashboardContent() {
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              setEditingId(draw.id);
-                              setEditName(draw.name);
+                              setDetailsModalOpen(draw.id);
                             }}
-                            className="text-[10px] font-black uppercase underline decoration-2 underline-offset-2"
+                            className="px-4 py-2 bg-[#2D2A26] text-white border-2 border-[#2D2A26] font-black text-[9px] uppercase tracking-widest shadow-[2px_2px_0px_0px_rgba(45,42,38,1)] hover:translate-y-[1px] hover:translate-x-[1px] hover:shadow-none transition-all"
                           >
-                            Rename
+                            Manage
                           </button>
                           <button
                             onClick={(e) => {
@@ -1193,219 +1157,134 @@ function DashboardContent() {
 
       {detailsModalOpen && boardTasks[detailsModalOpen] && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-md p-4">
-          <div className="paper-texture bg-[#f5f2e8] border-4 border-[#2D2A26] p-6 max-w-md w-full shadow-brutal-lg max-h-[90vh] flex flex-col animate-in zoom-in-95 duration-200">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-black uppercase italic max-w-xs leading-tight">
+          <div className="paper-texture bg-[#f5f2e8] border-4 border-[#2D2A26] p-8 max-w-4xl w-full shadow-brutal-lg max-h-[90vh] flex flex-col animate-in zoom-in-95 duration-200">
+            
+            {/* MODAL HEADER */}
+            <div className="flex items-center justify-between mb-6 pb-4 border-b-4 border-[#2D2A26]">
+              <h2 className="text-2xl font-black uppercase italic max-w-lg leading-tight truncate">
                 {boardTasks[detailsModalOpen]?.title}
               </h2>
               <button
                 onClick={() => setDetailsModalOpen(null)}
                 className="p-2 border-2 border-[#2D2A26] shadow-brutal-sm hover:translate-y-0.5 transition-all bg-white shrink-0"
               >
-                <X size={18} />
+                <X size={20} />
               </button>
             </div>
 
-            <div className="mb-3 pb-3 border-b-2 border-[#2D2A26]">
-              <p className="text-[10px] font-bold mb-1.5 uppercase opacity-60">
-                Description
-              </p>
-              <textarea
-                rows={2}
-                value={boardTasks[detailsModalOpen]?.description || ""}
-                placeholder="Add a task description..."
-                onChange={(e) =>
-                  updateTaskDescription(detailsModalOpen, e.target.value)
-                }
-                className="w-full p-2 border-2 border-[#2D2A26] font-bold text-sm bg-white focus:outline-none resize-none leading-relaxed"
-              />
-            </div>
+            {/* MODAL BODY - TWO COLUMNS */}
+            <div className="flex-1 overflow-y-auto custom-scrollbar pr-4 space-y-8">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                
+                {/* LEFT COLUMN */}
+                <div className="space-y-6">
+                  <div>
+                    <p className="text-[10px] font-bold mb-1.5 uppercase opacity-60">Board Name</p>
+                    <input type="text" value={drawings.find(d => d.id === detailsModalOpen)?.name || ""} onChange={(e) => updateBoardName(detailsModalOpen, e.target.value)} className="w-full p-3 border-2 border-[#2D2A26] font-black text-sm bg-white focus:outline-none" />
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold mb-1.5 uppercase opacity-60">Description</p>
+                    <textarea rows={4} value={boardTasks[detailsModalOpen]?.description || ""} placeholder="Add a task description..." onChange={(e) => updateTaskDescription(detailsModalOpen, e.target.value)} className="w-full p-3 border-2 border-[#2D2A26] font-bold text-sm bg-white focus:outline-none resize-none leading-relaxed" />
+                  </div>
+                </div>
 
-            <div className="mb-3 pb-3 border-b-2 border-[#2D2A26]">
-              <p className="text-[10px] font-bold mb-1.5 uppercase opacity-60">
-                Estimated Hours
-              </p>
-              <input
-                type="number"
-                min="0"
-                value={
-                  boardTasks[detailsModalOpen]?.estimated_hours === 0
-                    ? ""
-                    : boardTasks[detailsModalOpen]?.estimated_hours
-                }
-                placeholder="0"
-                onFocus={(e) => e.target.select()}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  const newHours = val === "" ? 0 : parseInt(val);
-                  updateTaskHours(detailsModalOpen, newHours);
-                }}
-                className="w-full p-2 border-2 border-[#2D2A26] font-black text-base bg-white focus:outline-none"
-              />
-            </div>
-
-            <div className="mb-3 pb-3 border-b-2 border-[#2D2A26]">
-              <p className="text-[10px] font-bold mb-1.5 uppercase opacity-60">
-                Due Date
-              </p>
-              <input
-                type="date"
-                value={boardTasks[detailsModalOpen]?.due_date || ""}
-                onChange={(e) =>
-                  updateTaskDueDate(detailsModalOpen, e.target.value || null)
-                }
-                className="w-full p-2 border-2 border-[#2D2A26] font-black text-base bg-white focus:outline-none"
-              />
-            </div>
-
-            <div className="mb-3 pb-3 border-b-2 border-[#2D2A26]">
-              <p className="text-[10px] font-bold mb-1.5 uppercase opacity-60">
-                Required Skills
-              </p>
-              <div className="flex flex-wrap gap-1.5 mb-2">
-                {(boardTasks[detailsModalOpen]?.required_skills || []).map(
-                  (skill) => (
-                    <span
-                      key={skill}
-                      className="flex items-center gap-1 px-2 py-0.5 bg-[#bae6fd] border border-[#2D2A26]/40 text-[8px] font-black uppercase"
-                    >
-                      {skill}
-                      <button
-                        onClick={() =>
-                          updateTaskSkills(
-                            detailsModalOpen,
-                            (
-                              boardTasks[detailsModalOpen]?.required_skills ||
-                              []
-                            ).filter((s) => s !== skill),
-                          )
-                        }
-                        className="ml-0.5 hover:text-red-600 font-black text-[10px] leading-none"
+                {/* RIGHT COLUMN */}
+                {/* RIGHT COLUMN */}
+                <div className="space-y-6">
+                  <div className="grid grid-cols-3 gap-4">
+                    <div>
+                      <p className="text-[10px] font-bold mb-1.5 uppercase opacity-60">Priority</p>
+                      <select 
+                        value={boardTasks[detailsModalOpen]?.priority || "Low"} 
+                        onChange={(e) => updateTaskPriority(detailsModalOpen, e.target.value as any)} 
+                        className="w-full p-3 border-2 border-[#2D2A26] font-black text-[11px] uppercase bg-white focus:outline-none cursor-pointer"
                       >
-                        ×
-                      </button>
-                    </span>
-                  ),
-                )}
-              </div>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={newSkillInput}
-                  onChange={(e) => setNewSkillInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && newSkillInput.trim()) {
-                      const existing =
-                        boardTasks[detailsModalOpen]?.required_skills || [];
-                      if (!existing.includes(newSkillInput.trim())) {
-                        updateTaskSkills(detailsModalOpen, [
-                          ...existing,
-                          newSkillInput.trim(),
-                        ]);
-                      }
-                      setNewSkillInput("");
-                    }
-                  }}
-                  placeholder="Add skill, press Enter"
-                  className="flex-1 p-2 border-2 border-[#2D2A26] font-bold text-xs bg-white focus:outline-none"
-                />
-                <button
-                  onClick={() => {
-                    if (!newSkillInput.trim()) return;
-                    const existing =
-                      boardTasks[detailsModalOpen]?.required_skills || [];
-                    if (!existing.includes(newSkillInput.trim())) {
-                      updateTaskSkills(detailsModalOpen, [
-                        ...existing,
-                        newSkillInput.trim(),
-                      ]);
-                    }
-                    setNewSkillInput("");
-                  }}
-                  className="px-3 py-2 bg-[#2D2A26] text-white font-black text-[9px] uppercase border-2 border-[#2D2A26]"
-                >
-                  Add
-                </button>
-              </div>
-            </div>
-
-            <p className="text-[10px] font-bold mb-2 uppercase opacity-60">
-              Task Roster
-            </p>
-            <div className="space-y-2 mb-4 flex-1 overflow-y-auto custom-scrollbar pr-2">
-              {profiles.map((employee) => {
-                const task = boardTasks[detailsModalOpen];
-                const isPrimary = task?.assigned_to === employee.id;
-                const isCollaborator = task?.collaborators?.includes(
-                  employee.id,
-                );
-
-                return (
-                  <div
-                    key={employee.id}
-                    className="p-3 border-2 border-[#2D2A26] bg-white flex items-center justify-between shadow-brutal-sm"
-                  >
-                    <div className="flex items-center gap-3">
-                      <Image
-                        src={
-                          employee.avatar_url ||
-                          `https://api.dicebear.com/7.x/avataaars/svg?seed=${employee.id}`
-                        }
-                        alt=""
-                        width={28}
-                        height={28}
-                        unoptimized
-                        className="border border-[#2D2A26] bg-white"
-                      />
-                      <div>
-                        <p className="text-[10px] font-black uppercase truncate max-w-[120px]">
-                          {employee.full_name}
-                        </p>
-                        <p className="text-[8px] font-bold opacity-60 uppercase">
-                          {employee.role}
-                        </p>
-                      </div>
+                        <option value="Low">Low</option>
+                        <option value="Medium">Medium</option>
+                        <option value="High">High</option>
+                        <option value="Critical">Critical</option>
+                      </select>
                     </div>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() =>
-                          assignPrimaryPerson(detailsModalOpen, employee.id)
-                        }
-                        className={`px-2 py-1 border-2 border-[#2D2A26] font-black text-[8px] uppercase transition-all ${
-                          isPrimary
-                            ? "bg-[#2D2A26] text-white"
-                            : "bg-white hover:bg-gray-100"
-                        }`}
-                      >
-                        Lead
-                      </button>
-                      <button
-                        onClick={() =>
-                          !isPrimary &&
-                          addCollaboratorToTask(detailsModalOpen, employee.id)
-                        }
-                        disabled={isPrimary}
-                        className={`px-2 py-1 border-2 border-[#2D2A26] font-black text-[8px] uppercase transition-all ${
-                          isPrimary
-                            ? "opacity-50 cursor-not-allowed"
-                            : isCollaborator
-                              ? "bg-[#86efac] text-gray-900"
-                              : "bg-white hover:bg-[#ffbb00]"
-                        }`}
-                      >
-                        Add
-                      </button>
+                    <div>
+                      <p className="text-[10px] font-bold mb-1.5 uppercase opacity-60">Est. Hours</p>
+                      <input type="number" min="0" value={boardTasks[detailsModalOpen]?.estimated_hours === 0 ? "" : boardTasks[detailsModalOpen]?.estimated_hours} placeholder="0" onFocus={(e) => e.target.select()} onChange={(e) => { const val = e.target.value; updateTaskHours(detailsModalOpen, val === "" ? 0 : parseInt(val)); }} className="w-full p-3 border-2 border-[#2D2A26] font-black text-sm bg-white focus:outline-none" />
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-bold mb-1.5 uppercase opacity-60">Due Date</p>
+                      <input type="date" value={boardTasks[detailsModalOpen]?.due_date || ""} onChange={(e) => updateTaskDueDate(detailsModalOpen, e.target.value || null)} className="w-full p-3 border-2 border-[#2D2A26] font-black text-sm bg-white focus:outline-none" />
                     </div>
                   </div>
-                );
-              })}
+                  <div>
+                    <p className="text-[10px] font-bold mb-1.5 uppercase opacity-60">Required Skills</p>
+                    <div className="flex gap-2 mb-3">
+                      <input type="text" value={newSkillInput} onChange={(e) => setNewSkillInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && newSkillInput.trim()) { const existing = boardTasks[detailsModalOpen]?.required_skills || []; if (!existing.includes(newSkillInput.trim())) updateTaskSkills(detailsModalOpen, [...existing, newSkillInput.trim()]); setNewSkillInput(""); } }} placeholder="Add skill, press Enter" className="flex-1 p-2 border-2 border-[#2D2A26] font-bold text-xs bg-white focus:outline-none" />
+                      <button onClick={() => { if (!newSkillInput.trim()) return; const existing = boardTasks[detailsModalOpen]?.required_skills || []; if (!existing.includes(newSkillInput.trim())) updateTaskSkills(detailsModalOpen, [...existing, newSkillInput.trim()]); setNewSkillInput(""); }} className="px-4 py-2 bg-[#2D2A26] text-white font-black text-[10px] uppercase border-2 border-[#2D2A26] shadow-brutal-sm hover:translate-y-0.5 transition-all">Add</button>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {(boardTasks[detailsModalOpen]?.required_skills || []).map((skill) => (
+                        <span key={skill} className="flex items-center gap-1 px-2.5 py-1 bg-[#bae6fd] border border-[#2D2A26] text-[9px] font-black uppercase shadow-sm">
+                          {skill}
+                          <button onClick={() => updateTaskSkills(detailsModalOpen, (boardTasks[detailsModalOpen]?.required_skills || []).filter((s) => s !== skill))} className="ml-1 hover:text-red-600 font-black text-[12px] leading-none">×</button>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* FULL WIDTH TASK ROSTER */}
+              <div className="border-t-4 border-[#2D2A26] pt-6">
+                <p className="text-[10px] font-bold mb-4 uppercase opacity-60 tracking-widest">Personnel Assignment</p>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {profiles.map((employee) => {
+                    const task = boardTasks[detailsModalOpen];
+                    const isPrimary = task?.assigned_to === employee.id;
+                    const isCollaborator = task?.collaborators?.includes(employee.id);
+
+                    return (
+                      <div key={employee.id} className={`p-3 border-2 border-[#2D2A26] flex flex-col justify-between shadow-brutal-sm ${isPrimary ? 'bg-[#ffbb00]/20' : 'bg-white'}`}>
+                        <div className="flex items-center gap-3 min-w-0 mb-4">
+                          <Image src={employee.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${employee.id}`} alt="" width={32} height={32} unoptimized className="border-2 border-[#2D2A26] bg-white shrink-0" />
+                          <div className="min-w-0">
+                            <p className="text-[11px] font-black uppercase truncate">{employee.full_name}</p>
+                            <p className="text-[9px] font-bold opacity-60 uppercase truncate">{employee.role}</p>
+                          </div>
+                        </div>
+                        <div className="flex gap-2 shrink-0">
+                          <button
+                            onClick={() => togglePrimaryPerson(detailsModalOpen, employee.id)}
+                            className={`flex-1 py-1.5 border-2 border-[#2D2A26] font-black text-[9px] uppercase transition-all shadow-sm ${
+                              isPrimary ? "bg-[#2D2A26] text-white hover:bg-red-600 hover:border-red-600 hover:shadow-none translate-y-[1px]" : "bg-white hover:bg-[#ffbb00]"
+                            }`}
+                          >
+                            {isPrimary ? "Drop Lead" : "Lead"}
+                          </button>
+                          <button
+                            onClick={() => !isPrimary && toggleCollaborator(detailsModalOpen, employee.id)}
+                            disabled={isPrimary}
+                            className={`flex-1 py-1.5 border-2 border-[#2D2A26] font-black text-[9px] uppercase transition-all shadow-sm ${
+                              isPrimary ? "opacity-30 cursor-not-allowed bg-gray-200" : isCollaborator ? "bg-[#86efac] text-gray-900 hover:bg-red-400 hover:shadow-none translate-y-[1px]" : "bg-white hover:bg-[#86efac]"
+                            }`}
+                          >
+                            {isCollaborator ? "Remove" : "Add"}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
-            <button
-              onClick={() => setDetailsModalOpen(null)}
-              className="w-full py-3 bg-[#2D2A26] text-white font-black uppercase text-xs shadow-brutal hover:translate-x-1 hover:translate-y-1 hover:shadow-none transition-all shrink-0"
-            >
-              Save Config
-            </button>
+            
+            {/* MODAL FOOTER */}
+            <div className="pt-6 border-t-4 border-[#2D2A26] mt-4">
+              <button
+                onClick={() => setDetailsModalOpen(null)}
+                className="w-full py-4 bg-[#2D2A26] text-white font-black uppercase text-sm tracking-widest shadow-brutal hover:translate-x-1 hover:translate-y-1 hover:shadow-none transition-all shrink-0"
+              >
+                Close & Save
+              </button>
+            </div>
           </div>
         </div>
       )}
