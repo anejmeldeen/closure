@@ -12,7 +12,7 @@ export default function BoardPage({ params }: { params: Promise<{ id: string }> 
   const router = useRouter();
 
   const handleBack = () => {
-    router.push('/?tab=whiteboard');
+    router.push('/?tab=tasks');
   };
 
   const handleMount = (editor: Editor) => {
