@@ -79,22 +79,30 @@ export default function ProfilePage() {
   }, [router]);
 
   // Load Slots & Days Off for Specific Week
+  // Load Slots & Days Off for Specific Week
   useEffect(() => {
     const fetchSlots = async () => {
       if (!profile?.id) return;
       const { data, error } = await supabase
         .from("availability_slots")
-        .select("busy_slots, days_off") // NEW: Fetching days_off
+        .select("busy_slots, days_off")
         .eq("profile_id", profile.id)
         .eq("week_start_date", weekKey)
         .maybeSingle();
 
       if (!error && data) {
         setBusySlots(new Set(data.busy_slots as string[] || []));
-        setDaysOff(new Set(data.days_off as string[] || []));
+        // If data.days_off is null (legacy row), default to Sat/Sun. 
+        // If it's an empty array [] (they work weekends), respect it!
+        if (data.days_off === null) {
+          setDaysOff(new Set(["Sat", "Sun"]));
+        } else {
+          setDaysOff(new Set(data.days_off as string[]));
+        }
       } else {
+        // Brand new week with no DB row yet: Default to weekends off
         setBusySlots(new Set());
-        setDaysOff(new Set());
+        setDaysOff(new Set(["Sat", "Sun"]));
       }
     };
     if (profile?.id) fetchSlots();

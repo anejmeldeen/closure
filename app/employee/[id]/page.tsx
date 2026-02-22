@@ -32,7 +32,10 @@ export default function EmployeePage({
   const [currentWeek, setCurrentWeek] = useState(
     startOfWeek(new Date(), { weekStartsOn: 1 }),
   );
+  
+  // Slot States
   const [busySlots, setBusySlots] = useState<Set<string>>(new Set());
+  const [daysOff, setDaysOff] = useState<Set<string>>(new Set()); // NEW: Track days off
 
   const weekKey = format(currentWeek, "yyyy-MM-dd");
   const weekEnd = addDays(currentWeek, 6);
@@ -51,20 +54,26 @@ export default function EmployeePage({
     fetchEmployee();
   }, [id]);
 
-  // Load Availability for Specific Week
+  // Load Availability & Days Off for Specific Week
   useEffect(() => {
     const fetchSlots = async () => {
       const { data, error } = await supabase
         .from("availability_slots")
-        .select("busy_slots")
+        .select("busy_slots, days_off")
         .eq("profile_id", id)
         .eq("week_start_date", weekKey)
         .maybeSingle();
 
-      if (!error && data && data.busy_slots) {
-        setBusySlots(new Set(data.busy_slots as string[]));
+      if (!error && data) {
+        setBusySlots(new Set(data.busy_slots as string[] || []));
+        if (data.days_off === null) {
+          setDaysOff(new Set(["Sat", "Sun"]));
+        } else {
+          setDaysOff(new Set(data.days_off as string[]));
+        }
       } else {
         setBusySlots(new Set());
+        setDaysOff(new Set(["Sat", "Sun"]));
       }
     };
     fetchSlots();
@@ -144,7 +153,7 @@ export default function EmployeePage({
               </div>
             </div>
 
-            {/* Skills Section (Moved Up) */}
+            {/* Skills Section */}
             <div className="mb-10">
               <div className="flex items-center gap-3 mb-4">
                 <Code2 size={20} />
@@ -170,7 +179,7 @@ export default function EmployeePage({
               </div>
             </div>
 
-            {/* Total Utilization (Stays Up) */}
+            {/* Total Utilization */}
             <div className="bg-white border-2 border-[#2D2A26] p-6 shadow-brutal-sm">
               <div className="flex items-center justify-between mb-3">
                 <p className="text-[10px] font-black uppercase tracking-widest">
@@ -230,8 +239,12 @@ export default function EmployeePage({
                     return (
                       <div
                         key={i}
-                        className="border-r-2 border-b-2 border-[#2D2A26] bg-[#f5f2e8] p-2 text-center flex flex-col items-center justify-center"
+                        className="border-r-2 border-b-2 border-[#2D2A26] bg-[#f5f2e8] p-2 text-center flex flex-col items-center justify-center relative"
                       >
+                        {/* If it's a day off, show a visual indicator in the header */}
+                        {daysOff.has(format(date, "EEE")) && (
+                          <div className="absolute top-1 right-1 w-2 h-2 bg-[#93c5fd] rounded-full border border-[#2D2A26]" title="Day Off"></div>
+                        )}
                         <span className="font-black text-[10px] uppercase">
                           {format(date, "EEE")}
                         </span>
@@ -257,14 +270,22 @@ export default function EmployeePage({
                       const date = addDays(currentWeek, i);
                       const dayName = format(date, "EEE");
                       const slotKey = `${dayName}-${hour}`;
+                      
+                      const isDayOff = daysOff.has(dayName);
                       const isBusy = busySlots.has(slotKey);
+
+                      // Priority: Day Off (Blue) > Busy (Orange) > Free (White)
+                      let bgClass = "bg-white";
+                      if (isDayOff) {
+                        bgClass = "bg-[#93c5fd]";
+                      } else if (isBusy) {
+                        bgClass = "bg-[#ffbb00]";
+                      }
 
                       return (
                         <div
                           key={slotKey}
-                          className={`border-r-2 border-b-2 border-[#2D2A26] h-10 transition-colors ${
-                            isBusy ? "bg-[#ffbb00]" : "bg-white"
-                          }`}
+                          className={`border-r-2 border-b-2 border-[#2D2A26] h-10 transition-colors ${bgClass}`}
                         />
                       );
                     })}
@@ -272,6 +293,7 @@ export default function EmployeePage({
                 ))}
               </div>
 
+              {/* Legend */}
               <div className="flex items-center gap-4 mt-4">
                 <div className="flex items-center gap-2">
                   <div className="w-3 h-3 bg-white border-2 border-[#2D2A26]" />
@@ -283,6 +305,12 @@ export default function EmployeePage({
                   <div className="w-3 h-3 bg-[#ffbb00] border-2 border-[#2D2A26]" />
                   <span className="text-[9px] font-black uppercase opacity-60">
                     Busy
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 bg-[#93c5fd] border-2 border-[#2D2A26]" />
+                  <span className="text-[9px] font-black uppercase opacity-60">
+                    Day Off
                   </span>
                 </div>
               </div>
