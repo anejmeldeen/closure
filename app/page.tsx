@@ -744,7 +744,7 @@ function DashboardContent() {
                       width={64}
                       height={64}
                       unoptimized
-                      className="bg-white border-2 border-[#2D2A26] shadow-brutal-sm rounded-sm"
+                      className="bg-white border-2 border-[#2D2A26] shadow-brutal-sm rounded-sm object-cover aspect-square"
                     />
                     <div className="flex-1 min-w-0">
                       <p className="font-black text-xl uppercase truncate group-hover:text-[#D97757] transition-colors">
@@ -1117,7 +1117,7 @@ function DashboardContent() {
                         width={32}
                         height={32}
                         unoptimized
-                        className="rounded-full border border-[#2D2A26] bg-white"
+                        className="bg-white border-2 border-[#2D2A26] shadow-brutal-sm rounded-sm object-cover aspect-square"
                       />
                       <span className="font-bold text-[11px] uppercase truncate max-w-[150px]">
                         {p.full_name}
