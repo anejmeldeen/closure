@@ -9,15 +9,6 @@
   --desk: #101419; /* Deep Midnight (Premium Dark Blue/Black) */
 }
 
-:root {
-  /* CORKBOARD PALETTE */
-  --desk: #2d1e14;      /* Deep Espresso Wood */
-  --cork: #6b4423;      /* Warm Cork Brown */
-  --paper: #f5f2e8;     /* Recycled Paper */
-  --ink: #1a120b;       /* Darkest Brown / Ink */
-  --accent: #ffbb00;    /* Classic Tape Yellow */
-}
-
 body {
   background-color: var(--desk);
   color: var(--ink);
