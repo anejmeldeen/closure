@@ -22,10 +22,11 @@ import {
   UserPlus,
 } from "lucide-react";
 
+
 import { PremiumPaymentFlow } from "./premium-payment";
-import TeamHeatmap from "@/components/TeamHeatmap";
 import AutoAssignButton from "@/components/AutoAssignButton";
 import BulkAutoAssignButton from "@/components/BulkAutoAssignButton";
+import TeamHeatmap from "@/components/TeamHeatmap";
 import Loader from "@/app/board/[id]/components/Loader";
 import Image from "next/image";
 import type { Profile } from "@/types/index";
@@ -282,6 +283,37 @@ function DashboardContent() {
     await supabase
       .from("chat_messages")
       .insert({ room_id: selectedRoom, sender_id: user.id, content });
+  };
+
+  // Logic for the Bulk "Assign Open Tasks" button
+  const handleBulkSuccess = (updates: any[]) => {
+    setBoardTasks(prev => {
+      const next = { ...prev };
+      updates.forEach(u => {
+        if (next[u.id]) {
+          next[u.id] = { 
+            ...next[u.id], 
+            assigned_to: u.assigned_to, 
+            collaborators: u.collaborators, 
+            description: u.description 
+          };
+        }
+      });
+      return next;
+    });
+  };
+
+  // Logic for the Single task "Initialize Protocol" button
+  const handleSingleSuccess = (boardId: string, primaryId: string, collabs: string[], newDesc: string) => {
+    setBoardTasks(prev => ({
+      ...prev,
+      [boardId]: { 
+        ...prev[boardId], 
+        assigned_to: primaryId, 
+        collaborators: collabs, 
+        description: newDesc 
+      }
+    }));
   };
 
   const handleCreateRoom = async () => {
@@ -817,9 +849,18 @@ function DashboardContent() {
             {activeTab === "tasks" && (
               <div className="animate-in fade-in duration-300">
                 <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
-                  <h2 className="text-4xl font-black uppercase tracking-tighter italic">
-                    Tasks
-                  </h2>
+                  <div className="flex items-center gap-6">
+                    <h2 className="text-4xl font-black uppercase tracking-tighter italic">Tasks</h2>
+                    
+                    {/* ADD THE BULK BUTTON HERE */}
+                    <BulkAutoAssignButton 
+                      tasks={Object.values(boardTasks)} 
+                      profiles={profiles} 
+                      onSuccess={handleBulkSuccess} 
+                    />
+                  </div>
+                  
+
                   <div className="flex bg-[#2D2A26]/5 p-1 border-2 border-[#2D2A26] self-start md:self-auto">
                     <button
                       onClick={() => setWhiteboardSubTab("todo")}
@@ -844,78 +885,10 @@ function DashboardContent() {
                       size={32}
                       className="text-gray-300 group-hover:text-[#2D2A26] transition-colors"
                     />
-                    <div className="flex-1 min-w-0">
-                      <p className="font-black text-xl uppercase truncate group-hover:text-[#D97757] transition-colors">
-                        {p.full_name}
-                      </p>
-                      <p className="font-mono text-[10px] font-bold opacity-40 uppercase truncate mb-2">
-                        {p.role}
-                      </p>
-                      {(p.skills?.length ?? 0) > 0 && (
-                        <div className="flex flex-wrap gap-1">
-                          {p.skills.slice(0, 3).map((skill) => (
-                            <span
-                              key={skill}
-                              className="px-1.5 py-0.5 bg-[#2D2A26] text-white text-[8px] font-black uppercase border border-[#2D2A26]"
-                            >
-                              {skill}
-                            </span>
-                          ))}
-                          {p.skills.length > 3 && (
-                            <span className="px-1.5 py-0.5 text-[8px] font-black uppercase opacity-40">
-                              +{p.skills.length - 3}
-                            </span>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  </Link>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {activeTab === "whiteboard" && (
-            <div className="animate-in fade-in duration-300">
-              {/* HEADER SECTION */}
-              <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-10 pb-6 border-b-4 border-[#2D2A26] gap-4">
-                <h2 className="text-4xl font-black uppercase tracking-tighter italic">
-                  Mission Boards
-                </h2>
-                
-                <div className="flex items-center gap-3">
-                  {/* Merged Button + Counter */}
-                  <BulkAutoAssignButton 
-                    tasks={Object.values(boardTasks)} 
-                    profiles={profiles} 
-                    onSuccess={(updates) => {
-                      setBoardTasks(prev => {
-                        const next = { ...prev };
-                        updates.forEach(u => {
-                          if (next[u.id]) {
-                            next[u.id] = { ...next[u.id], assigned_to: u.assigned_to, collaborators: u.collaborators, description: u.description };
-                          }
-                        });
-                        return next;
-                      });
-                    }}
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-10">
-                <button
-                  onClick={createNewDrawing}
-                  className="min-h-[24rem] border-2 border-dashed border-[#2D2A26]/30 bg-[#f5f2e8]/40 paper-texture flex flex-col items-center justify-center gap-4 hover:border-[#2D2A26] hover:bg-[#f5f2e8] transition-all group shadow-sm"
-                >
-                  <Plus
-                    size={32}
-                    className="text-gray-300 group-hover:text-[#2D2A26] transition-colors"
-                  />
-                  <span className="font-black text-[10px] uppercase tracking-widest opacity-40 group-hover:opacity-100">
-                    New Board
-                  </span>
-                </button>
+                    <span className="font-black text-[10px] uppercase tracking-widest opacity-40 group-hover:opacity-100">
+                      New Board
+                    </span>
+                  </button>
 
                   {filteredDrawings.map((draw) => {
                     const task = boardTasks[draw.id];
@@ -1388,6 +1361,13 @@ function DashboardContent() {
                     </div>
                   </div>
                   <div className="space-y-6">
+                    {/* ADD THE SINGLE BUTTON HERE */}
+                    <AutoAssignButton 
+                      boardId={detailsModalOpen}
+                      task={boardTasks[detailsModalOpen]}
+                      profiles={profiles}
+                      onSuccess={(primary, collabs, desc) => handleSingleSuccess(detailsModalOpen, primary, collabs, desc)}
+                    />
                     <div className="grid grid-cols-3 gap-4">
                       <div>
                         <p className="text-[10px] font-bold mb-1.5 uppercase opacity-60">
