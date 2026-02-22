@@ -1,12 +1,11 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { supabase } from "@/utils/supabase";
 import { Users, AlertCircle, ChevronLeft, ChevronRight } from "lucide-react";
 import { startOfWeek, addWeeks, subWeeks, format, addDays } from "date-fns";
 
 const HOURS = Array.from({ length: 11 }, (_, i) => i + 8);
-const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 interface TeamHeatmapProps {
   userIds?: string[]; 
@@ -16,16 +15,23 @@ interface TeamHeatmapProps {
 
 export default function TeamHeatmap({ userIds, title = "Team Capacity Heatmap", subtitle }: TeamHeatmapProps) {
   const [profiles, setProfiles] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  
+  // We handle loading strictly on the first fetch to avoid flickering later
+  const [initialLoad, setInitialLoad] = useState(true);
 
+  // Manage the week as a state so we can page through it smoothly
   const [currentWeek, setCurrentWeek] = useState(startOfWeek(new Date(), { weekStartsOn: 1 }));
+  
+  // Create stable string keys for comparisons
   const weekKey = format(currentWeek, "yyyy-MM-dd");
   const weekEnd = addDays(currentWeek, 6);
 
+  // Use a ref to track the last fetched week string so we don't re-fetch identical data
+  const lastFetchedWeek = useRef<string | null>(null);
+
   useEffect(() => {
+    // Prevent infinite loops if the userIds array reference changes but content doesn't
     const fetchTeamAvailability = async () => {
-      setLoading(true);
-      
       let query = supabase
         .from("profiles")
         .select(`
@@ -47,21 +53,24 @@ export default function TeamHeatmap({ userIds, title = "Team Capacity Heatmap", 
       if (!error && data) {
         setProfiles(data);
       }
-      setLoading(false);
+      
+      setInitialLoad(false);
+      lastFetchedWeek.current = weekKey;
     };
     
+    // Only fetch if it's the initial load OR if the actual week string changed
     if (!userIds || userIds.length > 0) {
-      fetchTeamAvailability();
+      if (initialLoad || lastFetchedWeek.current !== weekKey) {
+         fetchTeamAvailability();
+      }
     } else {
       setProfiles([]);
-      setLoading(false);
+      setInitialLoad(false);
     }
-  }, [userIds, weekKey]); // Also refetch if the week changes
+  }, [userIds, weekKey, initialLoad]); 
 
   const totalTeamMembers = profiles.length || 1; 
 
-  // Compute the heat logic
-  // Compute the heat logic
   const heatMapData = useMemo(() => {
     const slots: Record<string, { count: number; names: string[] }> = {};
     
@@ -70,15 +79,11 @@ export default function TeamHeatmap({ userIds, title = "Team Capacity Heatmap", 
       const currentWeekRecord = availabilityRecords.find((r: any) => r.week_start_date === weekKey);
       
       const busySlots = currentWeekRecord?.busy_slots || [];
-      
-      // Determine Days Off (Apply the weekend default if missing)
       const daysOff = currentWeekRecord && currentWeekRecord.days_off !== null 
         ? currentWeekRecord.days_off 
         : ["Sat", "Sun"];
 
       const userName = profile.full_name || "Unknown Operator";
-
-      // 1. Combine all unavailable slots (both busy hours and full days off) into a single Set
       const unavailableSlots = new Set<string>(busySlots);
       
       daysOff.forEach((day: string) => {
@@ -87,15 +92,12 @@ export default function TeamHeatmap({ userIds, title = "Team Capacity Heatmap", 
         });
       });
 
-      // 2. Map them to the master heatmap grid
       unavailableSlots.forEach(slotKey => {
         if (!slots[slotKey]) slots[slotKey] = { count: 0, names: [] };
         slots[slotKey].count += 1;
 
-        // Extract the day (e.g., "Mon" from "Mon-9")
         const dayName = slotKey.split('-')[0];
 
-        // 3. Priority Tagging: If the day is off, always append (OFF)
         if (daysOff.includes(dayName)) {
           slots[slotKey].names.push(`${userName} (OFF)`);
         } else {
@@ -116,7 +118,7 @@ export default function TeamHeatmap({ userIds, title = "Team Capacity Heatmap", 
     return "bg-[#dc2626] text-white border-[#2D2A26]"; 
   };
 
-  if (loading) {
+  if (initialLoad) {
     return (
       <div className="paper-texture bg-white border-2 border-[#2D2A26] p-8 shadow-brutal flex items-center justify-center h-full">
         <div className="w-8 h-8 border-4 border-[#2D2A26] border-t-transparent rounded-full animate-spin" />
