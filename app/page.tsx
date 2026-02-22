@@ -90,12 +90,11 @@ function DashboardContent() {
   );
   const [isPremium, setIsPremium] = useState<boolean>(false);
   const [showPremiumModal, setShowPremiumModal] = useState<boolean>(false);
+  const [hasUnread, setHasUnread] = useState<boolean>(false); // NEW: Unread message state
 
   // Modals
   const [isCalendarOpen, setIsCalendarOpen] = useState<boolean>(false);
-  const [taskHeatmapOpenId, setTaskHeatmapOpenId] = useState<string | null>(
-    null,
-  );
+  const [taskHeatmapOpenId, setTaskHeatmapOpenId] = useState<string | null>(null);
 
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -123,22 +122,22 @@ function DashboardContent() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [whiteboardSubTab, setWhiteboardSubTab] = useState<
-    "todo" | "completed"
-  >("todo");
+  const [whiteboardSubTab, setWhiteboardSubTab] = useState<"todo" | "completed">("todo");
 
   // Current user profile
   const [userProfile, setUserProfile] = useState<Profile | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  // Refs for tracking current tab inside background intervals
+  const activeTabRef = useRef<TabType>(activeTab);
+  useEffect(() => { activeTabRef.current = activeTab; }, [activeTab]);
 
   useEffect(() => {
     const init = async () => {
       const premium = localStorage.getItem("closure_premium") === "true";
       setIsPremium(premium);
 
-      const {
-        data: { user: authUser },
-      } = await supabase.auth.getUser();
+      const { data: { user: authUser } } = await supabase.auth.getUser();
       if (!authUser) {
         router.push("/login");
         return;
@@ -146,34 +145,21 @@ function DashboardContent() {
       setUser(authUser);
 
       const [profRes, drawRes, memberRes] = await Promise.all([
-        supabase
-          .from("profiles")
-          .select("*")
-          .order("full_name", { ascending: true }),
-        supabase
-          .from("drawings")
-          .select("*")
-          .order("last_modified", { ascending: false }),
-        supabase
-          .from("chat_room_members")
-          .select("chat_rooms(*)")
-          .eq("user_id", authUser.id),
+        supabase.from("profiles").select("*").order("full_name", { ascending: true }),
+        supabase.from("drawings").select("*").order("last_modified", { ascending: false }),
+        supabase.from("chat_room_members").select("chat_rooms(*)").eq("user_id", authUser.id),
       ]);
 
       if (profRes.data) {
         setProfiles(profRes.data as Profile[]);
-        setUserProfile(
-          (profRes.data as Profile[]).find((p) => p.id === authUser.id) || null,
-        );
+        setUserProfile((profRes.data as Profile[]).find((p) => p.id === authUser.id) || null);
       }
 
       const fetchedDrawings = drawRes.data ? (drawRes.data as Drawing[]) : [];
       setDrawings(fetchedDrawings);
 
       if (memberRes.data) {
-        const joinedRooms = memberRes.data
-          .map((m) => m.chat_rooms)
-          .filter(Boolean) as ChatRoom[];
+        const joinedRooms = memberRes.data.map((m) => m.chat_rooms).filter(Boolean) as ChatRoom[];
         setRooms(joinedRooms);
         if (joinedRooms.length > 0) setSelectedRoom(joinedRooms[0].id);
       }
@@ -200,8 +186,9 @@ function DashboardContent() {
     init();
   }, [router]);
 
+  // --- 1. PSEUDO-LIVE CHAT POLLING ---
   useEffect(() => {
-    if (!selectedRoom) return;
+    if (!selectedRoom || !user) return;
 
     const fetchChannelData = async () => {
       const { data: msgs } = await supabase
@@ -209,51 +196,73 @@ function DashboardContent() {
         .select("*, profiles(full_name, avatar_url)")
         .eq("room_id", selectedRoom)
         .order("created_at", { ascending: true });
-      if (msgs) setMessages(msgs as any[]);
+        
+      if (msgs) {
+        setMessages(msgs as any[]);
+        // If we are actively looking at messages, update our "last read" timestamp
+        if (activeTabRef.current === "messaging") {
+          localStorage.setItem(`closure_last_read_${user.id}`, new Date().toISOString());
+        }
+      }
 
       const { data: members } = await supabase
         .from("chat_room_members")
         .select("profiles(*)")
         .eq("room_id", selectedRoom);
-      if (members)
+      if (members) {
         setRoomMembers(members.map((m) => m.profiles) as unknown as Profile[]);
+      }
     };
-    fetchChannelData();
 
-    const channel = supabase
-      .channel(`room-${selectedRoom}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "chat_messages",
-          filter: `room_id=eq.${selectedRoom}`,
-        },
-        async (payload) => {
-          const { data: prof } = await supabase
-            .from("profiles")
-            .select("full_name, avatar_url")
-            .eq("id", payload.new.sender_id)
-            .single();
-          const msgWithProfile = {
-            ...payload.new,
-            profiles: prof,
-          } as ChatMessage;
-          setMessages((prev) =>
-            prev.find((m) => m.id === msgWithProfile.id)
-              ? prev
-              : [...prev, msgWithProfile],
-          );
-        },
-      )
-      .subscribe();
+    fetchChannelData(); // Fetch immediately
 
-    return () => {
-      supabase.removeChannel(channel);
+    // Poll every 3 seconds for pseudo-live updates
+    const interval = setInterval(fetchChannelData, 3000);
+    return () => clearInterval(interval);
+  }, [selectedRoom, user]);
+
+  // --- 2. GLOBAL UNREAD NOTIFICATION POLLING ---
+  useEffect(() => {
+    if (!user || rooms.length === 0) return;
+
+    const checkUnread = async () => {
+      // If we are already on the messaging tab, clear the dot and update timestamp
+      if (activeTabRef.current === "messaging") {
+        setHasUnread(false);
+        localStorage.setItem(`closure_last_read_${user.id}`, new Date().toISOString());
+        return;
+      }
+
+      const lastReadIso = localStorage.getItem(`closure_last_read_${user.id}`);
+      if (!lastReadIso) {
+        // First time ever loading, set the timestamp to now
+        localStorage.setItem(`closure_last_read_${user.id}`, new Date().toISOString());
+        return;
+      }
+
+      const roomIds = rooms.map((r) => r.id);
+      
+      const { data } = await supabase
+        .from("chat_messages")
+        .select("id")
+        .in("room_id", roomIds)
+        .neq("sender_id", user.id)
+        .gt("created_at", lastReadIso)
+        .limit(1);
+
+      if (data && data.length > 0) {
+        setHasUnread(true);
+      }
     };
-  }, [selectedRoom]);
 
+    checkUnread(); // Check immediately
+    
+    // Poll every 10 seconds in the background
+    const interval = setInterval(checkUnread, 10000);
+    return () => clearInterval(interval);
+  }, [user, rooms]);
+
+  // Scroll to bottom on new messages
   useEffect(() => {
     if (scrollRef.current)
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -261,6 +270,10 @@ function DashboardContent() {
 
   const handleTabChange = (tab: TabType) => {
     setActiveTab(tab);
+    if (tab === "messaging" && user) {
+      setHasUnread(false);
+      localStorage.setItem(`closure_last_read_${user.id}`, new Date().toISOString());
+    }
     window.history.replaceState(null, "", `?tab=${tab}`);
     setMobileMenuOpen(false);
   };
@@ -283,6 +296,8 @@ function DashboardContent() {
       },
     };
     setMessages((prev) => [...prev, optimisticMsg]);
+    
+    // Send to DB, the polling will pick it up and secure it permanently
     await supabase
       .from("chat_messages")
       .insert({ room_id: selectedRoom, sender_id: user.id, content });
@@ -569,7 +584,14 @@ function DashboardContent() {
               >
                 {t === "staff" && <Users size={16} />}
                 {t === "tasks" && <LayoutDashboard size={16} />}
-                {t === "messaging" && <MessageSquare size={16} />}
+                {t === "messaging" && (
+                  <div className="relative flex items-center justify-center">
+                    <MessageSquare size={16} />
+                    {hasUnread && (
+                      <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-600 rounded-full animate-pulse border border-[#2D2A26]"></span>
+                    )}
+                  </div>
+                )}
                 {t}
               </button>
             ))}
@@ -638,7 +660,14 @@ function DashboardContent() {
               >
                 {t === "staff" && <Users size={16} />}
                 {t === "tasks" && <LayoutDashboard size={16} />}
-                {t === "messaging" && <MessageSquare size={16} />}
+                {t === "messaging" && (
+                  <div className="relative">
+                    <MessageSquare size={16} />
+                    {hasUnread && (
+                      <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-600 rounded-full animate-pulse border border-[#2D2A26]"></span>
+                    )}
+                  </div>
+                )}
                 {t}
               </button>
             ))}
@@ -680,7 +709,7 @@ function DashboardContent() {
                       placeholder="SEARCH PROJECTS..."
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
-                      className="w-full pl-10 pr-4 py-3 bg-[#f5f2e8] border-2 border-[#2D2A26] font-bold text-[10px] focus:outline-none placeholder:opacity-20"
+                      className="w-full pl-10 pr-4 py-3 bg-[#f5f2e8] border-2 border-[#2D2A26] font-bold text-[10px] focus:outline-none placeholder:text-[#2D2A26] placeholder:opacity-50"
                     />
                   </div>
                   <div className="paper-texture p-6 border-2 border-[#2D2A26] shadow-brutal">
@@ -689,14 +718,9 @@ function DashboardContent() {
                     </h3>
                     <ul className="space-y-4">
                       {drawings.slice(0, 3).map((d) => (
-                        <li
-                          key={d.id}
-                          onClick={() =>
-                            router.push(`/board/${d.id}?tab=tasks`)
-                          }
-                          className="text-[13px] font-bold hover:text-[#D97757] cursor-pointer truncate flex items-center gap-2"
-                        >
-                          <FileText size={12} className="opacity-30" /> {d.name}
+                        <li key={d.id} onClick={() => router.push(`/board/${d.id}?tab=tasks`)} className="text-[13px] font-bold hover:text-[#D97757] cursor-pointer flex items-center gap-2">
+                          <FileText size={12} className="opacity-30 shrink-0" /> 
+                          <span className="truncate">{d.name}</span>
                         </li>
                       ))}
                     </ul>
@@ -707,15 +731,9 @@ function DashboardContent() {
                     </h3>
                     <ul className="space-y-4">
                       {incompleteDrawings.slice(0, 5).map((d) => (
-                        <li
-                          key={d.id}
-                          onClick={() =>
-                            router.push(`/board/${d.id}?tab=tasks`)
-                          }
-                          className="text-[13px] font-bold hover:text-[#D97757] cursor-pointer truncate flex items-center gap-2"
-                        >
-                          <div className="w-2 h-2 rounded-full bg-[#ffbb00]"></div>{" "}
-                          {d.name}
+                        <li key={d.id} onClick={() => router.push(`/board/${d.id}?tab=tasks`)} className="text-[13px] font-bold hover:text-[#D97757] cursor-pointer flex items-center gap-2">
+                          <div className="w-2 h-2 rounded-full bg-[#ffbb00] shrink-0"></div> 
+                          <span className="truncate">{d.name}</span>
                         </li>
                       ))}
                     </ul>
