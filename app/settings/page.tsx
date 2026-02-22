@@ -124,11 +124,37 @@ export default function SettingsPage() {
     window.location.href = `/api/auth/connect?provider=google&profileId=${profile.id}`;
   };
 
+  const handleGoogleDisconnect = async () => {
+    if (!profile?.id) return;
+    const confirmDisconnect = window.confirm("Are you sure you want to disconnect your Google Calendar? You will no longer be able to sync events.");
+    if (!confirmDisconnect) return;
+
+    try {
+      // { count: 'exact' } forces Supabase to report how many rows were actually removed
+      const { error, count } = await supabase
+        .from("calendar_integrations")
+        .delete({ count: 'exact' })
+        .eq("profile_id", profile.id)
+        .eq("provider", "google");
+
+      if (error) throw error;
+      
+      // If RLS blocks it, count will be 0
+      if (count === 0) {
+        throw new Error("Database blocked the deletion. Please ensure RLS policies allow DELETE.");
+      }
+      
+      setIsGoogleLinked(false);
+      alert("Google Calendar successfully disconnected.");
+    } catch (err: any) {
+      alert("Failed to disconnect: " + err.message);
+    }
+  };
+
   const handleSync = async () => {
     if (!profile?.id) return;
     setSyncing(true);
     try {
-      // Find the current week's Monday to match your database architecture
       const currentMonday = format(startOfWeek(new Date(), { weekStartsOn: 1 }), "yyyy-MM-dd");
       
       const res = await fetch('/api/calendar/sync', {
@@ -137,7 +163,7 @@ export default function SettingsPage() {
         body: JSON.stringify({ 
           profile_id: profile.id, 
           week_start: currentMonday,
-          timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone // Pass local TZ so mapping is accurate
+          timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone
         }),
       });
       
@@ -355,18 +381,36 @@ export default function SettingsPage() {
                   </p>
                   
                   {isGoogleLinked ? (
-                    <div className="flex items-center gap-4">
+                    <div className="flex flex-col gap-4 max-w-sm">
+                      {/* Connected Card */}
+                      <div className="p-5 bg-[#f5f2e8] border-2 border-[#2D2A26] shadow-brutal-sm flex flex-col gap-5">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 bg-[#86efac] border-2 border-[#2D2A26] flex items-center justify-center text-gray-900 shrink-0">
+                            <CheckCircle2 size={20} strokeWidth={3} />
+                          </div>
+                          <div>
+                            <p className="font-black text-sm uppercase tracking-tight">Google Calendar</p>
+                            <p className="text-[9px] font-bold text-green-700 uppercase tracking-widest mt-0.5">Connected & Active</p>
+                          </div>
+                        </div>
+                        
+                        <button 
+                          onClick={handleSync}
+                          disabled={syncing}
+                          className="w-full flex items-center justify-center gap-2 p-3 bg-white border-2 border-[#2D2A26] font-black text-[10px] uppercase tracking-widest shadow-sm hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-none transition-all disabled:opacity-50"
+                        >
+                          {syncing ? <RefreshCcw size={14} className="animate-spin text-[#2D2A26]" /> : <RefreshCcw size={14} />}
+                          {syncing ? "Pulling Data..." : "Sync Current Week"}
+                        </button>
+                      </div>
+
+                      {/* Disconnect Button */}
                       <button 
-                        onClick={handleSync}
-                        disabled={syncing}
-                        className="flex-1 max-w-sm flex items-center justify-center gap-3 p-4 bg-[#86efac] border-2 border-[#2D2A26] font-black text-[10px] uppercase tracking-widest shadow-brutal hover:shadow-none hover:translate-x-[2px] hover:translate-y-[2px] transition-all disabled:opacity-50"
+                        onClick={handleGoogleDisconnect}
+                        className="w-full flex items-center justify-center gap-2 p-3 bg-red-100 text-red-700 border-2 border-[#2D2A26] font-black text-[10px] uppercase tracking-widest shadow-brutal-sm hover:shadow-none hover:translate-x-[1px] hover:translate-y-[1px] transition-all"
                       >
-                        {syncing ? <RefreshCcw size={16} className="animate-spin text-[#2D2A26]" /> : <CheckCircle2 size={16} />}
-                        {syncing ? "Pulling Data..." : "Sync Current Week"}
+                        <X size={14} strokeWidth={3} /> Disconnect Calendar
                       </button>
-                      <span className="text-[10px] font-black uppercase tracking-widest text-green-700 bg-green-100 px-3 py-1 border border-green-700">
-                        Linked
-                      </span>
                     </div>
                   ) : (
                     <button 
