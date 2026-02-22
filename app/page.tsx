@@ -568,16 +568,13 @@ function DashboardContent() {
           </div>
         </div>
         <div className="flex items-center gap-6">
-          <button
-            onClick={() => setShowPremiumModal(true)}
-            className={`px-6 py-2 border-2 border-[#2D2A26] font-bold text-[10px] uppercase shadow-brutal hover:shadow-none hover:translate-x-0.5 hover:translate-y-0.5 transition-all ${
-              isPremium
-                ? "bg-[#86efac] hover:bg-[#7ee692]"
-                : "bg-[#ffbb00] hover:bg-[#ffcc22]"
-            }`}
+          <Link
+            href="/settings"
+            className="w-9 h-9 bg-gray-200 border-2 border-[#2D2A26] flex items-center justify-center text-[#2D2A26] shadow-brutal hover:shadow-none hover:translate-x-0.5 hover:translate-y-0.5 transition-all"
+            title="Settings"
           >
-            {isPremium ? "Premium" : "Upgrade"}
-          </button>
+            <Settings size={16} strokeWidth={3} />
+          </Link>
 
           <Link
             href="/profile"
