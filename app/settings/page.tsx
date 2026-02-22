@@ -166,7 +166,7 @@ export default function SettingsPage() {
 
   const tabs: { id: TabType; label: string; icon: React.ReactNode }[] = [
     { id: "profile", label: "Identity & Icon", icon: <User size={16} /> },
-    { id: "skills", label: "Skills Matrix", icon: <Wrench size={16} /> },
+    { id: "skills", label: "Skills", icon: <Wrench size={16} /> },
     { id: "notifications", label: "Alerts", icon: <Bell size={16} /> },
     { id: "integrations", label: "Integrations", icon: <Calendar size={16} /> },
   ];
@@ -178,7 +178,7 @@ export default function SettingsPage() {
           <Link href="/" className="flex items-center gap-2 font-black text-[10px] uppercase tracking-widest opacity-50 hover:opacity-100 transition-opacity">
             <ArrowLeft size={16} strokeWidth={3} /> Back
           </Link>
-          <span className="text-2xl font-black uppercase tracking-tighter">System Settings</span>
+          <span className="text-2xl font-black uppercase tracking-tighter">Settings</span>
         </div>
       </nav>
 
@@ -206,8 +206,8 @@ export default function SettingsPage() {
               <section className="paper-texture border-4 border-[#2D2A26] shadow-brutal-lg p-8">
                 <div className="mb-6 pb-4 border-b-4 border-[#2D2A26] flex justify-between items-end">
                   <div>
-                    <h2 className="text-2xl font-black uppercase italic tracking-tight">Personnel Data</h2>
-                    <p className="font-bold text-xs uppercase opacity-60 tracking-widest mt-1">Manage your registry information</p>
+                    <h2 className="text-2xl font-black uppercase italic tracking-tight">Personal Data</h2>
+                    <p className="font-bold text-xs uppercase opacity-60 tracking-widest mt-1">Manage your information</p>
                   </div>
                   <button 
                     onClick={handleProfileSave}
@@ -223,7 +223,7 @@ export default function SettingsPage() {
                     <input type="text" value={fullName} onChange={(e) => setFullName(e.target.value)} className="w-full p-3 border-2 border-[#2D2A26] font-bold text-sm bg-white focus:outline-none shadow-brutal-sm" />
                   </div>
                   <div>
-                    <p className="text-[10px] font-black uppercase mb-2">Operational Role</p>
+                    <p className="text-[10px] font-black uppercase mb-2">Role</p>
                     <input type="text" value={role} onChange={(e) => setRole(e.target.value)} placeholder="e.g. Senior Engineer" className="w-full p-3 border-2 border-[#2D2A26] font-bold text-sm bg-white focus:outline-none shadow-brutal-sm" />
                   </div>
                 </div>
@@ -277,8 +277,8 @@ export default function SettingsPage() {
             <div className="animate-in fade-in slide-in-from-bottom-4 duration-300">
               <section className="paper-texture border-4 border-[#2D2A26] shadow-brutal-lg p-8">
                 <div className="mb-6 pb-4 border-b-4 border-[#2D2A26]">
-                  <h2 className="text-2xl font-black uppercase italic tracking-tight">Personnel Skills</h2>
-                  <p className="font-bold text-xs uppercase opacity-60 tracking-widest mt-1">Manage your operational capabilities</p>
+                  <h2 className="text-2xl font-black uppercase italic tracking-tight">Skills</h2>
+                  <p className="font-bold text-xs uppercase opacity-60 tracking-widest mt-1">Manage your capabilities</p>
                 </div>
                 <div className="flex flex-wrap gap-2 mb-6 min-h-[48px] p-4 bg-white/50 border-2 border-[#2D2A26]/20">
                   {(profile?.skills || []).length === 0 ? (
