@@ -1,14 +1,14 @@
 "use client";
 
-import { useState, useEffect, Fragment } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "@/utils/supabase";
-import { ArrowLeft, Plus, X, Check } from "lucide-react";
+import { ArrowLeft, Plus, X, Check, ChevronLeft, ChevronRight, RefreshCcw } from "lucide-react";
 import type { Profile } from "@/types/index";
+import { startOfWeek, addWeeks, subWeeks, format, addDays } from "date-fns";
 
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-// Generates hours from 8 AM to 6 PM (8 to 18)
 const HOURS = Array.from({ length: 11 }, (_, i) => i + 8); 
 
 export default function ProfilePage() {
@@ -22,24 +22,25 @@ export default function ProfilePage() {
   const [savedRole, setSavedRole] = useState(false);
   const [skillError, setSkillError] = useState<string | null>(null);
 
+  // --- Week Tracking State ---
+  const [currentWeek, setCurrentWeek] = useState(startOfWeek(new Date(), { weekStartsOn: 1 }));
+  const [syncing, setSyncing] = useState(false);
+  
+  const weekKey = format(currentWeek, "yyyy-MM-dd");
+  const weekEnd = addDays(currentWeek, 6);
+
   // --- Click & Drag Calendar State ---
   const [busySlots, setBusySlots] = useState<Set<string>>(new Set());
   const [isDragging, setIsDragging] = useState(false);
   const [dragMode, setDragMode] = useState<'add' | 'remove' | null>(null);
 
+  // Load Profile
   useEffect(() => {
     const load = async () => {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        router.push("/login");
-        return;
-      }
+      if (!user) return router.push("/login");
 
-      const { data } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", user.id)
-        .single();
+      const { data } = await supabase.from("profiles").select("*").eq("id", user.id).single();
         
       if (data) {
         setProfile(data as Profile);
@@ -47,31 +48,53 @@ export default function ProfilePage() {
         const localSkills = localStorage.getItem(`skills_${data.id}`);
         if (localSkills) setProfile({ ...(data as Profile), skills: JSON.parse(localSkills) });
       }
-
-      // Load saved grid slots
-      const savedGrid = localStorage.getItem("busy_slots_grid");
-      if (savedGrid) setBusySlots(new Set(JSON.parse(savedGrid)));
-
       setLoading(false);
     };
     load();
   }, [router]);
 
-  // Global mouse up to stop dragging if the user's cursor leaves the grid
+  // Load Slots for Specific Week
   useEffect(() => {
-    const handleGlobalMouseUp = () => {
+    const fetchSlots = async () => {
+      if (!profile?.id) return;
+      const { data } = await supabase
+        .from("availability_slots")
+        .select("busy_slots")
+        .eq("profile_id", profile.id)
+        .eq("week_start_date", weekKey)
+        .single();
+
+      if (data && data.busy_slots) {
+        setBusySlots(new Set(data.busy_slots));
+      } else {
+        setBusySlots(new Set());
+      }
+    };
+    if (profile?.id) fetchSlots();
+  }, [profile?.id, weekKey]);
+
+  // Save on Drag End
+  useEffect(() => {
+    const handleGlobalMouseUp = async () => {
       if (isDragging) {
         setIsDragging(false);
         setDragMode(null);
-        // Save whenever they finish dragging
-        localStorage.setItem("busy_slots_grid", JSON.stringify(Array.from(busySlots)));
+        
+        if (profile?.id) {
+          const { error } = await supabase.from("availability_slots").upsert({
+            profile_id: profile.id,
+            week_start_date: weekKey,
+            busy_slots: Array.from(busySlots),
+          }, { onConflict: 'profile_id,week_start_date' });
+          if (error) console.error("Save failed:", error.message);
+        }
       }
     };
     window.addEventListener('mouseup', handleGlobalMouseUp);
     return () => window.removeEventListener('mouseup', handleGlobalMouseUp);
-  }, [isDragging, busySlots]);
+  }, [isDragging, busySlots, profile?.id, weekKey]);
 
-  // --- Grid Interaction Logic ---
+  // Drag Interactions
   const updateSlot = (slotKey: string, mode: 'add' | 'remove') => {
     setBusySlots(prev => {
       const next = new Set(prev);
@@ -89,23 +112,44 @@ export default function ProfilePage() {
   };
 
   const handleMouseEnter = (day: string, hour: number) => {
-    if (isDragging && dragMode) {
-      updateSlot(`${day}-${hour}`, dragMode);
+    if (isDragging && dragMode) updateSlot(`${day}-${hour}`, dragMode);
+  };
+
+  // Sync Google Calendar
+  const handleSync = async () => {
+    if (!profile?.id) return;
+    setSyncing(true);
+    try {
+      const res = await fetch('/api/calendar/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ profile_id: profile.id, week_start: weekKey }),
+      });
+      const data = await res.json();
+      
+      if (!res.ok) {
+        if (res.status === 404) {
+          window.location.href = `/api/auth/connect?provider=google&profileId=${profile.id}`;
+          return;
+        }
+        throw new Error(data.error);
+      }
+      
+      if (data.slots) setBusySlots(new Set(data.slots));
+      alert("Successfully synced with Google Calendar!");
+    } catch (err: any) {
+      alert("Sync failed: " + err.message);
+    } finally {
+      setSyncing(false);
     }
   };
 
-  // --- Profile Logic ---
-  const saveSkillsLocally = (skills: string[]) => {
-    localStorage.setItem(`skills_${profile?.id}`, JSON.stringify(skills));
-  };
+  // Profile Specific Functions (Skills, Role)
+  const saveSkillsLocally = (skills: string[]) => localStorage.setItem(`skills_${profile?.id}`, JSON.stringify(skills));
 
   const addSkill = () => {
     const skill = newSkill.trim();
-    if (!skill || !profile) return;
-    if ((profile.skills || []).includes(skill)) {
-      setNewSkill("");
-      return;
-    }
+    if (!skill || !profile || (profile.skills || []).includes(skill)) return setNewSkill("");
     const updated = [...(profile.skills || []), skill];
     setProfile({ ...profile, skills: updated });
     saveSkillsLocally(updated);
@@ -244,33 +288,54 @@ export default function ProfilePage() {
           </div>
         </div>
 
-        {/* --- Click & Drag Availability Grid --- */}
+        {/* --- Editable Availability Grid --- */}
         <div className="paper-texture border-2 border-[#2D2A26] shadow-brutal p-8 select-none">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 pb-4 border-b-2 border-[#2D2A26] gap-4">
+          <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between mb-6 pb-4 border-b-2 border-[#2D2A26] gap-4">
             <div>
               <h2 className="font-black text-xs uppercase tracking-widest">Availability</h2>
               <p className="text-[10px] font-bold opacity-50 uppercase mt-1">Click and drag to mark busy hours</p>
             </div>
             
-            <button 
-              onClick={() => window.location.href = `/api/auth/connect?provider=google&profileId=${profile?.id}`}
-              className="flex items-center gap-2 px-3 py-2 bg-white border-2 border-[#2D2A26] text-[10px] font-black uppercase shadow-brutal-sm hover:shadow-none hover:translate-x-0.5 hover:translate-y-0.5 transition-all"
-            >
-              <div className="w-4 h-4 bg-red-100 text-red-600 rounded-full flex items-center justify-center font-bold">G</div>
-              Import Calendar
-            </button>
+            <div className="flex flex-wrap items-center gap-3">
+              {/* Week Switcher */}
+              <div className="flex items-center border-2 border-[#2D2A26] bg-[#f5f2e8] shadow-brutal-sm">
+                <button onClick={() => setCurrentWeek(subWeeks(currentWeek, 1))} className="p-2 hover:bg-white border-r-2 border-[#2D2A26] transition-colors">
+                  <ChevronLeft size={16} strokeWidth={3} />
+                </button>
+                <span className="px-4 py-2 text-[10px] font-black uppercase tracking-widest min-w-[150px] text-center">
+                  {format(currentWeek, "MMM d")} - {format(weekEnd, "MMM d, yy")}
+                </span>
+                <button onClick={() => setCurrentWeek(addWeeks(currentWeek, 1))} className="p-2 hover:bg-white border-l-2 border-[#2D2A26] transition-colors">
+                  <ChevronRight size={16} strokeWidth={3} />
+                </button>
+              </div>
+
+              {/* Sync Button */}
+              <button 
+                onClick={handleSync}
+                disabled={syncing}
+                className="flex items-center gap-2 px-4 py-2 bg-white border-2 border-[#2D2A26] text-[10px] font-black uppercase shadow-brutal-sm hover:shadow-none hover:translate-x-0.5 hover:translate-y-0.5 transition-all disabled:opacity-50"
+              >
+                {syncing ? <RefreshCcw size={14} className="animate-spin text-red-600" /> : <div className="w-4 h-4 bg-red-100 text-red-600 rounded-full flex items-center justify-center font-bold">G</div>}
+                {syncing ? "Syncing..." : "Sync Calendar"}
+              </button>
+            </div>
           </div>
 
           <div className="overflow-x-auto">
-            <div className="min-w-[500px] border-l-2 border-t-2 border-[#2D2A26]">
+            <div className="min-w-[700px] border-l-2 border-t-2 border-[#2D2A26]">
               {/* Grid Header */}
               <div className="grid grid-cols-8">
                 <div className="border-r-2 border-b-2 border-[#2D2A26] bg-[#f5f2e8] p-2"></div>
-                {DAYS.map(day => (
-                  <div key={day} className="border-r-2 border-b-2 border-[#2D2A26] bg-[#f5f2e8] p-2 text-center font-black text-[10px] uppercase">
-                    {day}
-                  </div>
-                ))}
+                {Array.from({ length: 7 }).map((_, i) => {
+                  const date = addDays(currentWeek, i);
+                  return (
+                    <div key={i} className="border-r-2 border-b-2 border-[#2D2A26] bg-[#f5f2e8] p-2 text-center flex flex-col items-center justify-center">
+                      <span className="font-black text-[10px] uppercase">{format(date, "EEE")}</span>
+                      <span className="font-bold text-lg leading-none mt-1">{format(date, "d")}</span>
+                    </div>
+                  );
+                })}
               </div>
 
               {/* Grid Body */}
@@ -279,15 +344,18 @@ export default function ProfilePage() {
                   <div className="border-r-2 border-b-2 border-[#2D2A26] bg-[#f5f2e8] p-2 text-right font-black text-[9px] uppercase flex items-center justify-end">
                     {hour > 12 ? `${hour - 12} PM` : hour === 12 ? '12 PM' : `${hour} AM`}
                   </div>
-                  {DAYS.map(day => {
-                    const slotKey = `${day}-${hour}`;
+                  {Array.from({ length: 7 }).map((_, i) => {
+                    const date = addDays(currentWeek, i);
+                    const dayName = format(date, "EEE"); 
+                    const slotKey = `${dayName}-${hour}`;
                     const isBusy = busySlots.has(slotKey);
+                    
                     return (
                       <div
                         key={slotKey}
-                        onMouseDown={() => handleMouseDown(day, hour)}
-                        onMouseEnter={() => handleMouseEnter(day, hour)}
-                        className={`border-r-2 border-b-2 border-[#2D2A26] h-8 cursor-pointer transition-colors ${
+                        onMouseDown={() => handleMouseDown(dayName, hour)}
+                        onMouseEnter={() => handleMouseEnter(dayName, hour)}
+                        className={`border-r-2 border-b-2 border-[#2D2A26] h-10 cursor-pointer transition-colors ${
                           isBusy ? 'bg-[#ffbb00]' : 'bg-white hover:bg-[#f5f2e8]'
                         }`}
                       />
