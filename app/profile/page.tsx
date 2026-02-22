@@ -11,6 +11,9 @@ import {
   ChevronLeft,
   ChevronRight,
   RefreshCcw,
+  LayoutDashboard,
+  Clock,
+  Users,
 } from "lucide-react";
 import type { Profile } from "@/types/index";
 import { startOfWeek, addWeeks, subWeeks, format, addDays } from "date-fns";
@@ -40,6 +43,7 @@ export default function ProfilePage() {
   const [busySlots, setBusySlots] = useState<Set<string>>(new Set());
   const [isDragging, setIsDragging] = useState(false);
   const [dragMode, setDragMode] = useState<"add" | "remove" | null>(null);
+  const [assignedTasks, setAssignedTasks] = useState<any[]>([]);
 
   // Load Profile Data
   useEffect(() => {
@@ -58,6 +62,16 @@ export default function ProfilePage() {
       if (data) {
         setProfile(data as Profile);
         setRoleInput(data.role || "");
+
+        const { data: tasks } = await supabase
+          .from("drawings")
+          .select(
+            "id, name, priority, status, estimated_hours, due_date, completed, collaborators, assigned_to",
+          )
+          .or(`assigned_to.eq.${user.id},collaborators.cs.{${user.id}}`)
+          .eq("completed", false)
+          .order("last_modified", { ascending: false });
+        if (tasks) setAssignedTasks(tasks);
       }
       setLoading(false);
     };
@@ -181,7 +195,7 @@ export default function ProfilePage() {
 
   return (
     <>
-      <nav className="bg-[#f5f2e8] border-b-2 border-[#2D2A26] px-8 py-4 flex items-center justify-between fixed top-0 left-0 right-0 w-full z-[9999] shadow-md">
+      <nav className="bg-[#f5f2e8] border-b-2 border-[#2D2A26] px-4 sm:px-8 py-4 flex items-center justify-between fixed top-0 left-0 right-0 w-full z-[9999] shadow-md">
         <div className="flex items-center gap-6">
           <Link
             href="/"
@@ -196,9 +210,9 @@ export default function ProfilePage() {
       </nav>
 
       <div className="min-h-screen cork-texture font-sans text-[#2D2A26] pt-[75px]">
-        <main className="max-w-4xl mx-auto px-8 py-12 space-y-8">
+        <main className="max-w-4xl mx-auto px-4 sm:px-8 py-8 md:py-12 space-y-8">
           {/* Hero Card */}
-          <div className="paper-texture border-2 border-[#2D2A26] shadow-brutal-lg p-10 flex flex-col sm:flex-row items-start sm:items-center gap-8">
+          <div className="paper-texture border-2 border-[#2D2A26] shadow-brutal-lg p-6 sm:p-10 flex flex-col sm:flex-row items-start sm:items-center gap-8">
             {/* STATIC AVATAR */}
             <div className="relative w-24 h-24 bg-[#f5f2e8] border-4 border-[#2D2A26] shadow-brutal shrink-0 flex items-center justify-center overflow-hidden">
               <img
@@ -263,7 +277,7 @@ export default function ProfilePage() {
           </div>
 
           {/* --- Editable Availability Grid --- */}
-          <div className="paper-texture border-2 border-[#2D2A26] shadow-brutal p-8 select-none">
+          <div className="paper-texture border-2 border-[#2D2A26] shadow-brutal p-4 sm:p-8 select-none">
             <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between mb-6 pb-4 border-b-2 border-[#2D2A26] gap-4">
               <div>
                 <h2 className="font-black text-xs uppercase tracking-widest">
@@ -388,6 +402,86 @@ export default function ProfilePage() {
               </div>
             </div>
           </div>
+          {/* --- Assigned Tasks --- */}
+          {assignedTasks.length > 0 && (
+            <div className="paper-texture border-2 border-[#2D2A26] shadow-brutal p-8">
+              <div className="flex items-center gap-3 mb-6 pb-4 border-b-2 border-[#2D2A26]">
+                <LayoutDashboard size={18} strokeWidth={2.5} />
+                <h2 className="font-black text-xs uppercase tracking-widest">
+                  My Tasks
+                </h2>
+                <span className="ml-auto text-[10px] font-black uppercase opacity-40">
+                  {assignedTasks.length} active
+                </span>
+              </div>
+              <div className="space-y-3">
+                {assignedTasks.map((task) => {
+                  const priorityColor =
+                    task.priority === "Critical"
+                      ? "bg-red-600"
+                      : task.priority === "High"
+                        ? "bg-orange-500"
+                        : "bg-[#ffbb00]";
+                  const dueDate = task.due_date
+                    ? new Date(task.due_date)
+                    : null;
+                  const daysLeft = dueDate
+                    ? Math.ceil((dueDate.getTime() - Date.now()) / 86400000)
+                    : null;
+
+                  return (
+                    <Link
+                      key={task.id}
+                      href={`/board/${task.id}`}
+                      className="flex items-center gap-4 p-4 bg-white border-2 border-[#2D2A26] shadow-brutal-sm hover:shadow-none hover:translate-x-0.5 hover:translate-y-0.5 transition-all group"
+                    >
+                      <div
+                        className={`w-1.5 self-stretch rounded-sm shrink-0 ${priorityColor}`}
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className="font-black text-sm uppercase truncate group-hover:text-[#D97757] transition-colors">
+                          {task.name}
+                        </p>
+                        <div className="flex items-center gap-3 mt-1">
+                          <span className="text-[9px] font-bold uppercase opacity-50">
+                            {task.priority}
+                          </span>
+                          {task.estimated_hours > 0 && (
+                            <span className="flex items-center gap-1 text-[9px] font-bold uppercase opacity-50">
+                              <Clock size={9} /> {task.estimated_hours}h
+                            </span>
+                          )}
+                          {task.collaborators?.length > 0 && (
+                            <span className="flex items-center gap-1 text-[9px] font-bold uppercase opacity-50">
+                              <Users size={9} /> {task.collaborators.length + 1}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      {daysLeft !== null && (
+                        <span
+                          className={`text-[9px] font-black uppercase px-2 py-1 border border-[#2D2A26]/20 shrink-0 ${daysLeft < 0 ? "bg-red-100 text-red-700" : daysLeft <= 3 ? "bg-[#ffbb00]/60 text-gray-800" : "bg-[#f5f2e8] text-gray-600"}`}
+                        >
+                          {daysLeft < 0
+                            ? `${Math.abs(daysLeft)}d overdue`
+                            : daysLeft === 0
+                              ? "Due today"
+                              : `${daysLeft}d left`}
+                        </span>
+                      )}
+                      <div
+                        className={`text-[8px] font-black uppercase px-2 py-1 shrink-0 ${task.status === "in_progress" ? "bg-[#bae6fd] text-blue-800" : "bg-[#f5f2e8] text-gray-500"}`}
+                      >
+                        {task.status === "in_progress"
+                          ? "In Progress"
+                          : "Not Started"}
+                      </div>
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </main>
       </div>
     </>

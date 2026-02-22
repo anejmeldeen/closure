@@ -98,7 +98,7 @@ export default function EmployeePage({
 
   return (
     <>
-      <nav className="bg-[#f5f2e8] border-b-2 border-[#2D2A26] px-8 py-4 flex items-center fixed top-0 left-0 right-0 w-full z-[9999] shadow-md">
+      <nav className="bg-[#f5f2e8] border-b-2 border-[#2D2A26] px-4 sm:px-8 py-4 flex items-center fixed top-0 left-0 right-0 w-full z-[9999] shadow-md">
         <Link
           href="/?tab=staff"
           className="mr-6 p-2 border-2 border-[#2D2A26] shadow-brutal-sm hover:shadow-none hover:translate-x-0.5 hover:translate-y-0.5 transition-all bg-white"
@@ -111,7 +111,7 @@ export default function EmployeePage({
       </nav>
 
       <div className="min-h-screen cork-texture flex flex-col font-sans text-[#2D2A26] pt-[75px]">
-        <main className="flex-1 p-8 md:p-12 max-w-4xl mx-auto w-full relative z-10">
+        <main className="flex-1 p-4 sm:p-8 md:p-12 max-w-4xl mx-auto w-full relative z-10">
           {/* Profile Card */}
           <div className="paper-texture bg-[#f5f2e8] border-2 border-[#2D2A26] p-10 shadow-brutal-lg mb-10 relative">
             <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-12 h-4 bg-[#ffbb00] opacity-80 border border-[#2D2A26]/10"></div>

@@ -258,7 +258,7 @@ export default function SettingsPage() {
 
   return (
     <>
-      <nav className="bg-[#f5f2e8] border-b-2 border-[#2D2A26] px-8 py-4 flex items-center justify-between fixed top-0 left-0 right-0 w-full z-[9999] shadow-md">
+      <nav className="bg-[#f5f2e8] border-b-2 border-[#2D2A26] px-4 sm:px-8 py-4 flex items-center justify-between fixed top-0 left-0 right-0 w-full z-[9999] shadow-md">
         <div className="flex items-center gap-6">
           <Link
             href="/"
@@ -273,22 +273,24 @@ export default function SettingsPage() {
       </nav>
 
       <div className="min-h-screen cork-texture font-sans text-[#2D2A26] pb-20 pt-[75px]">
-        <main className="max-w-[1200px] mx-auto px-8 py-12 flex flex-col md:flex-row gap-10">
-          <aside className="w-full md:w-64 shrink-0 flex flex-col gap-3">
-            {tabs.map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-3 p-4 border-2 border-[#2D2A26] font-black uppercase text-[11px] tracking-widest transition-all ${
-                  activeTab === tab.id
-                    ? "bg-[#2D2A26] text-white shadow-none translate-x-[2px] translate-y-[2px]"
-                    : "bg-[#f5f2e8] paper-texture text-[#2D2A26] shadow-brutal hover:bg-white hover:-translate-y-0.5"
-                }`}
-              >
-                {tab.icon}
-                {tab.label}
-              </button>
-            ))}
+        <main className="max-w-[1200px] mx-auto px-4 sm:px-8 py-8 md:py-12 flex flex-col md:flex-row gap-6 md:gap-10">
+          <aside className="w-full md:w-64 shrink-0">
+            <div className="flex flex-row gap-2 overflow-x-auto pb-2 md:flex-col md:overflow-visible md:pb-0 md:gap-3">
+              {tabs.map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`flex items-center gap-2 md:gap-3 px-4 md:p-4 py-3 border-2 border-[#2D2A26] font-black uppercase text-[11px] tracking-widest transition-all whitespace-nowrap shrink-0 ${
+                    activeTab === tab.id
+                      ? "bg-[#2D2A26] text-white shadow-none translate-x-[2px] translate-y-[2px]"
+                      : "bg-[#f5f2e8] paper-texture text-[#2D2A26] shadow-brutal hover:bg-white hover:-translate-y-0.5"
+                  }`}
+                >
+                  {tab.icon}
+                  {tab.label}
+                </button>
+              ))}
+            </div>
           </aside>
 
           <div className="flex-1 min-w-0 space-y-10">
