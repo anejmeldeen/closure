@@ -29,6 +29,7 @@ import {
 import { PremiumPaymentFlow } from "./premium-payment";
 import TeamHeatmap from "@/components/TeamHeatmap";
 import AutoAssignButton from "@/components/AutoAssignButton";
+import BulkAutoAssignButton from "@/components/BulkAutoAssignButton";
 import Loader from "@/app/board/[id]/components/Loader";
 import Image from "next/image";
 import type { Profile } from "@/types/index";
@@ -768,9 +769,32 @@ function DashboardContent() {
 
           {activeTab === "whiteboard" && (
             <div className="animate-in fade-in duration-300">
-              <h2 className="text-4xl font-black uppercase tracking-tighter italic mb-8">
-                Mission Boards
-              </h2>
+              {/* HEADER SECTION */}
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-10 pb-6 border-b-4 border-[#2D2A26] gap-4">
+                <h2 className="text-4xl font-black uppercase tracking-tighter italic">
+                  Mission Boards
+                </h2>
+                
+                <div className="flex items-center gap-3">
+                  {/* Merged Button + Counter */}
+                  <BulkAutoAssignButton 
+                    tasks={Object.values(boardTasks)} 
+                    profiles={profiles} 
+                    onSuccess={(updates) => {
+                      setBoardTasks(prev => {
+                        const next = { ...prev };
+                        updates.forEach(u => {
+                          if (next[u.id]) {
+                            next[u.id] = { ...next[u.id], assigned_to: u.assigned_to, collaborators: u.collaborators, description: u.description };
+                          }
+                        });
+                        return next;
+                      });
+                    }}
+                  />
+                </div>
+              </div>
+
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-10">
                 <button
                   onClick={createNewDrawing}
