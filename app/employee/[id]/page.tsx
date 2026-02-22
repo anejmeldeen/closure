@@ -8,7 +8,6 @@ import {
   ArrowLeft,
   Code2,
   Briefcase,
-  Star,
   Calendar as CalendarIcon,
   ChevronLeft,
   ChevronRight,
@@ -99,7 +98,7 @@ export default function EmployeePage({
 
   return (
     <>
-      <nav className="bg-[#f5f2e8] border-b-2 border-[#2D2A26] px-8 py-4 flex items-center fixed top-0 left-0 right-0 w-full z-[9999] shadow-md">
+      <nav className="bg-[#f5f2e8] border-b-2 border-[#2D2A26] px-4 sm:px-8 py-4 flex items-center fixed top-0 left-0 right-0 w-full z-[9999] shadow-md">
         <Link
           href="/?tab=staff"
           className="mr-6 p-2 border-2 border-[#2D2A26] shadow-brutal-sm hover:shadow-none hover:translate-x-0.5 hover:translate-y-0.5 transition-all bg-white"
@@ -112,7 +111,7 @@ export default function EmployeePage({
       </nav>
 
       <div className="min-h-screen cork-texture flex flex-col font-sans text-[#2D2A26] pt-[75px]">
-        <main className="flex-1 p-8 md:p-12 max-w-4xl mx-auto w-full relative z-10">
+        <main className="flex-1 p-4 sm:p-8 md:p-12 max-w-4xl mx-auto w-full relative z-10">
           {/* Profile Card */}
           <div className="paper-texture bg-[#f5f2e8] border-2 border-[#2D2A26] p-10 shadow-brutal-lg mb-10 relative">
             <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-12 h-4 bg-[#ffbb00] opacity-80 border border-[#2D2A26]/10"></div>
@@ -139,32 +138,6 @@ export default function EmployeePage({
                   <p className="font-bold text-sm uppercase tracking-widest text-gray-500">
                     {employee.role}
                   </p>
-                </div>
-                <div className="flex items-center justify-center md:justify-start gap-4 bg-white/50 border-2 border-[#2D2A26] p-3 shadow-brutal-sm inline-flex">
-                  <span className="text-[10px] font-black uppercase">
-                    Rating:
-                  </span>
-                  <div className="flex gap-1">
-                    {[...Array(5)].map((_, i) => (
-                      <Star
-                        key={i}
-                        size={14}
-                        fill={
-                          i < Math.floor(employee.performance_rating)
-                            ? "#2D2A26"
-                            : "none"
-                        }
-                        className={
-                          i < Math.floor(employee.performance_rating)
-                            ? "text-[#2D2A26]"
-                            : "text-gray-300"
-                        }
-                      />
-                    ))}
-                  </div>
-                  <span className="font-mono font-bold text-xs">
-                    {employee.performance_rating}/5
-                  </span>
                 </div>
               </div>
             </div>
