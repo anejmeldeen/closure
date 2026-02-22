@@ -5,8 +5,23 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "@/utils/supabase";
 import {
-  Users, LayoutDashboard, MessageSquare, Calendar, X, Settings, Plus, 
-  FileText, Trash2, Clock, SquarePen, Search, Check, Send, UserPlus, Star, Menu,
+  Users,
+  LayoutDashboard,
+  MessageSquare,
+  Calendar,
+  X,
+  Settings,
+  Plus,
+  FileText,
+  Trash2,
+  Clock,
+  SquarePen,
+  Search,
+  Check,
+  Send,
+  UserPlus,
+  Star,
+  Menu,
 } from "lucide-react";
 import { startOfWeek, format } from "date-fns";
 
@@ -18,10 +33,50 @@ import Loader from "@/app/board/[id]/components/Loader";
 import Image from "next/image";
 import type { Profile } from "@/types/index";
 
-interface ChatRoom { id: string; name: string; type: string; }
-interface ChatMessage { id: string; room_id: string; sender_id: string; content: string; created_at: string; profiles?: { full_name: string; avatar_url: string }; }
-interface DbTask { id: string; title: string; description: string; priority: "Low" | "Medium" | "High" | "Critical"; required_skills: string[]; assigned_to: string | null; collaborators: string[]; status: "not-started" | "in_progress" | "done"; estimated_hours: number; due_date: string | null; }
-interface Drawing { id: string; user_id: string; name: string; completed: boolean; last_modified: string; created_at: string; priority?: "Low" | "Medium" | "High" | "Critical"; assigned_to?: string | null; collaborators?: string[]; estimated_hours?: number; description?: string; status?: "not-started" | "in_progress" | "done"; due_date?: string | null; required_skills?: string[]; }
+// --- TYPES ---
+interface ChatRoom {
+  id: string;
+  name: string;
+  type: string;
+}
+interface ChatMessage {
+  id: string;
+  room_id: string;
+  sender_id: string;
+  content: string;
+  created_at: string;
+  profiles?: { full_name: string; avatar_url: string };
+}
+
+interface DbTask {
+  id: string;
+  title: string;
+  description: string;
+  priority: "Low" | "Medium" | "High" | "Critical";
+  required_skills: string[];
+  assigned_to: string | null;
+  collaborators: string[];
+  status: "not-started" | "in_progress" | "done";
+  estimated_hours: number;
+  due_date: string | null;
+}
+
+interface Drawing {
+  id: string;
+  user_id: string;
+  name: string;
+  completed: boolean;
+  last_modified: string;
+  created_at: string;
+  priority?: "Low" | "Medium" | "High" | "Critical";
+  assigned_to?: string | null;
+  collaborators?: string[];
+  estimated_hours?: number;
+  description?: string;
+  status?: "not-started" | "in_progress" | "done";
+  due_date?: string | null;
+  required_skills?: string[];
+}
 
 type TabType = "staff" | "tasks" | "messaging";
 
@@ -37,7 +92,9 @@ function DashboardContent() {
   const currentHour = currentDate.getHours();
 
   // App State
-  const [activeTab, setActiveTab] = useState<TabType>((searchParams.get("tab") as TabType) || "staff");
+  const [activeTab, setActiveTab] = useState<TabType>(
+    (searchParams.get("tab") as TabType) || "staff",
+  );
   const [isPremium, setIsPremium] = useState<boolean>(false);
   const [showPremiumModal, setShowPremiumModal] = useState<boolean>(false);
   const [hasUnread, setHasUnread] = useState<boolean>(false); 
@@ -92,7 +149,6 @@ function DashboardContent() {
       }
       setUser(authUser);
 
-      // NEW: Included availability_slots in the profiles fetch so we can see who is busy!
       const [profRes, drawRes, memberRes] = await Promise.all([
         supabase.from("profiles").select("*, availability_slots(busy_slots, days_off, week_start_date)").order("full_name", { ascending: true }),
         supabase.from("drawings").select("*").order("last_modified", { ascending: false }),
@@ -228,57 +284,82 @@ function DashboardContent() {
     if (error) { alert("Action denied"); setDrawings(original); }
   };
 
+  // --- LAST MODIFIED BUMPERS ---
+  const saveRename = async () => {
+    if (!editingId) return;
+    const ts = new Date().toISOString();
+    setDrawings((prev) => prev.map((d) => (d.id === editingId ? { ...d, name: editName, last_modified: ts } : d)).sort((a, b) => new Date(b.last_modified).getTime() - new Date(a.last_modified).getTime()));
+    setEditingId(null);
+    await supabase.from("drawings").update({ name: editName, last_modified: ts }).eq("id", editingId);
+  };
+
   const toggleStatus = async (e: MouseEvent, id: string, currentStatus: boolean) => {
     e.stopPropagation();
     const newStatus = !currentStatus;
-    setDrawings(drawings.map((d) => (d.id === id ? { ...d, completed: newStatus } : d)));
-    await supabase.from("drawings").update({ completed: newStatus }).eq("id", id);
+    const ts = new Date().toISOString();
+    setDrawings((prev) => prev.map((d) => (d.id === id ? { ...d, completed: newStatus, last_modified: ts } : d)).sort((a, b) => new Date(b.last_modified).getTime() - new Date(a.last_modified).getTime()));
+    await supabase.from("drawings").update({ completed: newStatus, last_modified: ts }).eq("id", id);
   };
 
   const toggleCollaborator = async (boardId: string, employeeId: string) => {
     const task = boardTasks[boardId];
     const isCollab = task.collaborators?.includes(employeeId);
     const newCollabs = isCollab ? task.collaborators.filter((id) => id !== employeeId) : [...(task.collaborators || []), employeeId];
+    const ts = new Date().toISOString();
     setBoardTasks((prev) => ({ ...prev, [boardId]: { ...task, collaborators: newCollabs } }));
-    await supabase.from("drawings").update({ collaborators: newCollabs }).eq("id", boardId);
+    setDrawings((prev) => prev.map((d) => (d.id === boardId ? { ...d, last_modified: ts } : d)).sort((a, b) => new Date(b.last_modified).getTime() - new Date(a.last_modified).getTime()));
+    await supabase.from("drawings").update({ collaborators: newCollabs, last_modified: ts }).eq("id", boardId);
   };
 
   const togglePrimaryPerson = async (boardId: string, employeeId: string) => {
     const newAssigned = boardTasks[boardId].assigned_to === employeeId ? null : employeeId;
+    const ts = new Date().toISOString();
     setBoardTasks((prev) => ({ ...prev, [boardId]: { ...prev[boardId], assigned_to: newAssigned } }));
-    await supabase.from("drawings").update({ assigned_to: newAssigned }).eq("id", boardId);
+    setDrawings((prev) => prev.map((d) => (d.id === boardId ? { ...d, last_modified: ts } : d)).sort((a, b) => new Date(b.last_modified).getTime() - new Date(a.last_modified).getTime()));
+    await supabase.from("drawings").update({ assigned_to: newAssigned, last_modified: ts }).eq("id", boardId);
   };
 
   const updateTaskPriority = async (boardId: string, newPriority: "Low" | "Medium" | "High" | "Critical") => {
+    const ts = new Date().toISOString();
     setBoardTasks((prev) => ({ ...prev, [boardId]: { ...prev[boardId], priority: newPriority } }));
+    setDrawings((prev) => prev.map((d) => (d.id === boardId ? { ...d, last_modified: ts } : d)).sort((a, b) => new Date(b.last_modified).getTime() - new Date(a.last_modified).getTime()));
     setPriorityEditId(null);
-    await supabase.from("drawings").update({ priority: newPriority }).eq("id", boardId);
+    await supabase.from("drawings").update({ priority: newPriority, last_modified: ts }).eq("id", boardId);
   };
 
   const updateTaskHours = async (boardId: string, hours: number) => {
+    const ts = new Date().toISOString();
     setBoardTasks((prev) => ({ ...prev, [boardId]: { ...prev[boardId], estimated_hours: hours } }));
-    await supabase.from("drawings").update({ estimated_hours: hours }).eq("id", boardId);
+    setDrawings((prev) => prev.map((d) => (d.id === boardId ? { ...d, last_modified: ts } : d)).sort((a, b) => new Date(b.last_modified).getTime() - new Date(a.last_modified).getTime()));
+    await supabase.from("drawings").update({ estimated_hours: hours, last_modified: ts }).eq("id", boardId);
   };
 
   const updateBoardName = async (boardId: string, newName: string) => {
-    setDrawings(drawings.map((d) => (d.id === boardId ? { ...d, name: newName } : d)));
+    const ts = new Date().toISOString();
+    setDrawings((prev) => prev.map((d) => (d.id === boardId ? { ...d, name: newName, last_modified: ts } : d)).sort((a, b) => new Date(b.last_modified).getTime() - new Date(a.last_modified).getTime()));
     setBoardTasks((prev) => ({ ...prev, [boardId]: { ...prev[boardId], title: newName } }));
-    await supabase.from("drawings").update({ name: newName }).eq("id", boardId);
+    await supabase.from("drawings").update({ name: newName, last_modified: ts }).eq("id", boardId);
   };
 
   const updateTaskDescription = async (boardId: string, description: string) => {
+    const ts = new Date().toISOString();
     setBoardTasks((prev) => ({ ...prev, [boardId]: { ...prev[boardId], description } }));
-    await supabase.from("drawings").update({ description }).eq("id", boardId);
+    setDrawings((prev) => prev.map((d) => (d.id === boardId ? { ...d, last_modified: ts } : d)).sort((a, b) => new Date(b.last_modified).getTime() - new Date(a.last_modified).getTime()));
+    await supabase.from("drawings").update({ description, last_modified: ts }).eq("id", boardId);
   };
 
   const updateTaskDueDate = async (boardId: string, due_date: string | null) => {
+    const ts = new Date().toISOString();
     setBoardTasks((prev) => ({ ...prev, [boardId]: { ...prev[boardId], due_date } }));
-    await supabase.from("drawings").update({ due_date }).eq("id", boardId);
+    setDrawings((prev) => prev.map((d) => (d.id === boardId ? { ...d, last_modified: ts } : d)).sort((a, b) => new Date(b.last_modified).getTime() - new Date(a.last_modified).getTime()));
+    await supabase.from("drawings").update({ due_date, last_modified: ts }).eq("id", boardId);
   };
 
   const updateTaskSkills = async (boardId: string, required_skills: string[]) => {
+    const ts = new Date().toISOString();
     setBoardTasks((prev) => ({ ...prev, [boardId]: { ...prev[boardId], required_skills } }));
-    await supabase.from("drawings").update({ required_skills }).eq("id", boardId);
+    setDrawings((prev) => prev.map((d) => (d.id === boardId ? { ...d, last_modified: ts } : d)).sort((a, b) => new Date(b.last_modified).getTime() - new Date(a.last_modified).getTime()));
+    await supabase.from("drawings").update({ required_skills, last_modified: ts }).eq("id", boardId);
   };
 
   const getDueDateBadge = (due_date: string | null, isCompleted: boolean) => {
@@ -446,7 +527,6 @@ function DashboardContent() {
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {profiles.map((p) => {
-                  // --- NEW: Calculate the employee's exact current status ---
                   const slotsRecord = (p as any).availability_slots?.find((s: any) => s.week_start_date === weekKey);
                   const daysOff = slotsRecord && slotsRecord.days_off !== null ? slotsRecord.days_off : ["Sat", "Sun"];
                   const busySlots = slotsRecord?.busy_slots || [];
@@ -454,7 +534,6 @@ function DashboardContent() {
                   const isOff = daysOff.includes(currentDay);
                   const isBusy = !isOff && busySlots.includes(`${currentDay}-${currentHour}`);
 
-                  // Determine colors based on status hierarchy
                   let statusText = "Available";
                   let statusBg = "bg-[#86efac]";
                   
@@ -471,8 +550,6 @@ function DashboardContent() {
 
                   return (
                     <Link key={p.id} href={`/employee/${p.id}`} className="paper-texture bg-[#f5f2e8] border-2 border-[#2D2A26] p-6 shadow-brutal hover:shadow-none hover:translate-x-1 hover:translate-y-1 transition-all flex items-center gap-6 group relative">
-                      
-                      {/* STATUS BADGE */}
                       <div className={`absolute top-4 right-4 px-2 py-0.5 border-2 border-[#2D2A26] text-[8px] font-black uppercase tracking-widest shadow-brutal-sm ${statusBg}`}>
                         {statusText}
                       </div>
@@ -502,7 +579,19 @@ function DashboardContent() {
               <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-10 pb-6 border-b-4 border-[#2D2A26] gap-4">
                 <h2 className="text-4xl font-black uppercase tracking-tighter italic">Tasks</h2>
                 <div className="flex items-center gap-4 flex-wrap">
-                  <BulkAutoAssignButton tasks={Object.values(boardTasks)} profiles={profiles} onSuccess={(updates) => { setBoardTasks((prev) => { const next = { ...prev }; updates.forEach((u) => { if (next[u.id]) { next[u.id] = { ...next[u.id], assigned_to: u.assigned_to, collaborators: u.collaborators, description: u.description }; } }); return next; }); }} />
+                  <BulkAutoAssignButton tasks={Object.values(boardTasks)} profiles={profiles} onSuccess={(updates) => {
+                    const ts = new Date().toISOString();
+                    setBoardTasks((prev) => {
+                      const next = { ...prev };
+                      updates.forEach((u) => {
+                        if (next[u.id]) {
+                          next[u.id] = { ...next[u.id], assigned_to: u.assigned_to, collaborators: u.collaborators, description: u.description };
+                        }
+                      });
+                      return next;
+                    });
+                    setDrawings((prev) => prev.map((d) => updates.find(u => u.id === d.id) ? { ...d, last_modified: ts } : d).sort((a, b) => new Date(b.last_modified).getTime() - new Date(a.last_modified).getTime()));
+                  }} />
                   <div className="flex bg-[#2D2A26]/5 p-1 border-2 border-[#2D2A26]">
                     <button onClick={() => setWhiteboardSubTab("todo")} className={`px-4 py-1.5 font-black text-[10px] uppercase tracking-widest transition-all ${whiteboardSubTab === "todo" ? "bg-[#2D2A26] text-white shadow-brutal-sm" : "text-[#2D2A26] hover:bg-white/50"}`}>Active Tasks</button>
                     <button onClick={() => setWhiteboardSubTab("completed")} className={`px-4 py-1.5 font-black text-[10px] uppercase tracking-widest transition-all ${whiteboardSubTab === "completed" ? "bg-[#2D2A26] text-white shadow-brutal-sm" : "text-[#2D2A26] hover:bg-white/50"}`}>Archive (7d)</button>
@@ -762,7 +851,11 @@ function DashboardContent() {
               </div>
               <div className="border-t-4 border-[#2D2A26] pt-6 mt-2">
                 <p className="text-[10px] font-bold mb-4 uppercase opacity-60 tracking-widest">Personnel Assignment</p>
-                <AutoAssignButton boardId={detailsModalOpen} task={boardTasks[detailsModalOpen]} profiles={profiles} onSuccess={(primaryId, collabs, newDescription) => { setBoardTasks((prev) => ({ ...prev, [detailsModalOpen]: { ...prev[detailsModalOpen], assigned_to: primaryId, collaborators: collabs, description: newDescription } })); }} />
+                <AutoAssignButton boardId={detailsModalOpen} task={boardTasks[detailsModalOpen]} profiles={profiles} onSuccess={(primaryId, collabs, newDescription) => { 
+                  const ts = new Date().toISOString();
+                  setBoardTasks((prev) => ({ ...prev, [detailsModalOpen]: { ...prev[detailsModalOpen], assigned_to: primaryId, collaborators: collabs, description: newDescription } }));
+                  setDrawings((prev) => prev.map((d) => d.id === detailsModalOpen ? { ...d, last_modified: ts } : d).sort((a, b) => new Date(b.last_modified).getTime() - new Date(a.last_modified).getTime()));
+                }} />
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {profiles.map((employee) => {
                     const task = boardTasks[detailsModalOpen];
