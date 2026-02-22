@@ -139,7 +139,7 @@ export default function Login() {
             Closure
           </h1>
           <p className="text-[#2D2A26]/60 text-sm mt-4 font-bold uppercase tracking-widest">
-            {isSignUp ? 'Create Workspace Account' : 'Sign In to Workspace'}
+            {isSignUp ? 'Bring Closure to Your Team' : 'Bring Closure to Your Team'}
           </p>
         </div>
 
