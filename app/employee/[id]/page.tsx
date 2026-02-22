@@ -8,7 +8,6 @@ import {
   ArrowLeft,
   Code2,
   Briefcase,
-  Star,
   Calendar as CalendarIcon,
   ChevronLeft,
   ChevronRight,
@@ -116,6 +115,8 @@ export default function EmployeePage({
           {/* Profile Card */}
           <div className="paper-texture bg-[#f5f2e8] border-2 border-[#2D2A26] p-10 shadow-brutal-lg mb-10 relative">
             <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-12 h-4 bg-[#ffbb00] opacity-80 border border-[#2D2A26]/10"></div>
+            
+            {/* Header Area */}
             <div className="flex flex-col md:flex-row items-center md:items-start gap-8 mb-10 pb-10 border-b-2 border-dashed border-[#2D2A26]/20">
               <div className="relative">
                 <Image
@@ -134,77 +135,42 @@ export default function EmployeePage({
                 <h2 className="text-4xl font-black uppercase tracking-tighter mb-2">
                   {employee.full_name}
                 </h2>
-                <div className="flex items-center justify-center md:justify-start gap-2 mb-6">
+                <div className="flex items-center justify-center md:justify-start gap-2">
                   <Briefcase size={16} className="opacity-40" />
                   <p className="font-bold text-sm uppercase tracking-widest text-gray-500">
                     {employee.role}
                   </p>
                 </div>
-                <div className="flex items-center justify-center md:justify-start gap-4 bg-white/50 border-2 border-[#2D2A26] p-3 shadow-brutal-sm inline-flex">
-                  <span className="text-[10px] font-black uppercase">
-                    Rating:
-                  </span>
-                  <div className="flex gap-1">
-                    {[...Array(5)].map((_, i) => (
-                      <Star
-                        key={i}
-                        size={14}
-                        fill={
-                          i < Math.floor(employee.performance_rating)
-                            ? "#2D2A26"
-                            : "none"
-                        }
-                        className={
-                          i < Math.floor(employee.performance_rating)
-                            ? "text-[#2D2A26]"
-                            : "text-gray-300"
-                        }
-                      />
-                    ))}
-                  </div>
-                  <span className="font-mono font-bold text-xs">
-                    {employee.performance_rating}/5
-                  </span>
-                </div>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
-              <div className="p-6 bg-white border-2 border-[#2D2A26] shadow-brutal-sm">
-                <p className="text-[10px] font-black uppercase opacity-40 mb-2">
-                  Capacity
-                </p>
-                <p className="text-2xl font-black tracking-tighter">
-                  {employee.max_capacity}H
-                </p>
-                <p className="text-[9px] font-bold opacity-30 mt-1 uppercase">
-                  Per Cycle
-                </p>
+            {/* Skills Section (Moved Up) */}
+            <div className="mb-10">
+              <div className="flex items-center gap-3 mb-4">
+                <Code2 size={20} />
+                <h3 className="text-xl font-black uppercase tracking-tight italic">
+                  Skill Matrix
+                </h3>
               </div>
-              <div className="p-6 bg-white border-2 border-[#2D2A26] shadow-brutal-sm">
-                <p className="text-[10px] font-black uppercase opacity-40 mb-2">
-                  Meetings
-                </p>
-                <p className="text-2xl font-black tracking-tighter">
-                  {employee.meeting_hours_7d}H
-                </p>
-                <p className="text-[9px] font-bold opacity-30 mt-1 uppercase">
-                  Logged 7D
-                </p>
-              </div>
-              <div className="p-6 bg-white border-2 border-[#2D2A26] shadow-brutal-sm">
-                <p className="text-[10px] font-black uppercase opacity-40 mb-2">
-                  Active Tasks
-                </p>
-                <p className="text-2xl font-black tracking-tighter">
-                  {employee.task_hours_7d}H
-                </p>
-                <p className="text-[9px] font-bold opacity-30 mt-1 uppercase">
-                  Production
-                </p>
+              <div className="flex flex-wrap gap-3">
+                {(employee.skills?.length ?? 0) === 0 ? (
+                  <p className="text-[10px] font-black uppercase opacity-30 tracking-widest">
+                    No skills listed.
+                  </p>
+                ) : (
+                  employee.skills?.map((skill) => (
+                    <span
+                      key={skill}
+                      className="px-4 py-2 bg-white border-2 border-[#2D2A26] text-[10px] font-black uppercase tracking-widest shadow-brutal-sm"
+                    >
+                      {skill}
+                    </span>
+                  ))
+                )}
               </div>
             </div>
 
+            {/* Total Utilization (Stays Up) */}
             <div className="bg-white border-2 border-[#2D2A26] p-6 shadow-brutal-sm">
               <div className="flex items-center justify-between mb-3">
                 <p className="text-[10px] font-black uppercase tracking-widest">
@@ -223,7 +189,7 @@ export default function EmployeePage({
             </div>
           </div>
 
-          {/* --- READ-ONLY Availability Grid --- */}
+          {/* Availability Grid */}
           <div className="paper-texture bg-white border-2 border-[#2D2A26] p-8 shadow-brutal mb-10">
             <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between mb-6 pb-4 border-b-2 border-[#2D2A26] gap-4">
               <div className="flex items-center gap-3">
@@ -320,32 +286,6 @@ export default function EmployeePage({
                   </span>
                 </div>
               </div>
-            </div>
-          </div>
-
-          {/* Skills Section */}
-          <div className="paper-texture bg-white border-2 border-[#2D2A26] p-8 shadow-brutal">
-            <div className="flex items-center gap-3 mb-6">
-              <Code2 size={20} />
-              <h3 className="text-xl font-black uppercase tracking-tight italic">
-                Skill Matrix
-              </h3>
-            </div>
-            <div className="flex flex-wrap gap-3">
-              {(employee.skills?.length ?? 0) === 0 ? (
-                <p className="text-[10px] font-black uppercase opacity-30 tracking-widest">
-                  No skills listed.
-                </p>
-              ) : (
-                employee.skills?.map((skill) => (
-                  <span
-                    key={skill}
-                    className="px-4 py-2 bg-[#f5f2e8] border-2 border-[#2D2A26] text-[10px] font-black uppercase tracking-widest shadow-brutal-sm"
-                  >
-                    {skill}
-                  </span>
-                ))
-              )}
             </div>
           </div>
         </main>
