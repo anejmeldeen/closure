@@ -1,7 +1,8 @@
 'use client';
 
-import { use } from 'react';
-import { Tldraw, Editor } from 'tldraw';
+import { useState, useEffect, use } from 'react';
+// NEW: Imported getSnapshot and loadSnapshot directly from tldraw
+import { Tldraw, Editor, getSnapshot, loadSnapshot } from 'tldraw'; 
 import 'tldraw/tldraw.css';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/utils/supabase';
@@ -11,21 +12,71 @@ export default function BoardPage({ params }: { params: Promise<{ id: string }> 
   const { id } = use(params);
   const router = useRouter();
 
+  // State to hold the cloud drawing data before rendering the board
+  const [initialSnapshot, setInitialSnapshot] = useState<any>(null);
+  const [isFetching, setIsFetching] = useState(true);
+
+  // Fetch the drawing from Supabase when the page loads
+  useEffect(() => {
+    const fetchDrawing = async () => {
+      const { data, error } = await supabase
+        .from('drawings')
+        .select('canvas_data')
+        .eq('id', id)
+        .single();
+        
+      if (data?.canvas_data) {
+        setInitialSnapshot(data.canvas_data);
+      }
+      setIsFetching(false);
+    };
+    
+    fetchDrawing();
+  }, [id]);
+
   const handleBack = () => {
     router.push('/?tab=tasks');
   };
 
   const handleMount = (editor: Editor) => {
+    // 1. Inject the cloud data using the standalone loadSnapshot utility
+    if (initialSnapshot) {
+      try {
+        loadSnapshot(editor.store, initialSnapshot);
+      } catch (e) {
+        console.error("Failed to load drawing from cloud", e);
+      }
+    }
+
+    // 2. Save new drawing strokes to Supabase every 2 seconds
     let timeout: NodeJS.Timeout;
     editor.store.listen((update) => {
-      if (update.source !== 'user') return;
+      if (update.source !== 'user') return; // Only save user actions
+      
       clearTimeout(timeout);
       timeout = setTimeout(async () => {
         const timestamp = new Date().toISOString();
-        await supabase.from('drawings').update({ last_modified: timestamp }).eq('id', id);
+        
+        // NEW: Grab the snapshot using the standalone getSnapshot utility
+        const snapshot = getSnapshot(editor.store); 
+        
+        await supabase.from('drawings').update({ 
+          last_modified: timestamp,
+          canvas_data: snapshot 
+        }).eq('id', id);
+        
       }, 2000);
     }, { scope: 'document' });
   };
+
+  // Wait for Supabase to grab the drawing before showing the canvas
+  if (isFetching) {
+    return (
+      <div className="fixed inset-0 bg-[#F5F2E8] flex items-center justify-center">
+        <div className="w-8 h-8 border-4 border-[#2D2A26] border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 bg-[#F5F2E8] overflow-hidden">
@@ -36,7 +87,7 @@ export default function BoardPage({ params }: { params: Promise<{ id: string }> 
         }}
       />
       
-      {/* THE BASE COLOR OVERLAY (To keep the beige tone) */}
+      {/* THE BASE COLOR OVERLAY */}
       <div className="absolute inset-0 bg-[#F5F2E8]/40 paper-texture pointer-events-none z-0" />
 
       <style dangerouslySetInnerHTML={{ __html: `
@@ -58,7 +109,6 @@ export default function BoardPage({ params }: { params: Promise<{ id: string }> 
 
       <div className="w-full h-full relative z-10">
         <Tldraw 
-          persistenceKey={`project-${id}`} 
           onMount={handleMount}
           gridMode={false}
         >
