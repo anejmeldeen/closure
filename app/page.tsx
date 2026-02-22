@@ -117,6 +117,7 @@ function DashboardContent() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [whiteboardSubTab, setWhiteboardSubTab] = useState<"todo" | "completed">("todo");
 
   // Current user profile (for nav avatar)
   const [userProfile, setUserProfile] = useState<Profile | null>(null);
@@ -494,8 +495,8 @@ function DashboardContent() {
     if (error) alert(`Supabase Error (Skills): ${error.message}`);
   };
 
-  const getDueDateBadge = (due_date: string | null) => {
-    if (!due_date) return null;
+  const getDueDateBadge = (due_date: string | null, isCompleted: boolean) => {
+    if (!due_date || isCompleted) return null;
     const now = new Date();
     const due = new Date(due_date);
     const diffDays = Math.ceil(
@@ -519,9 +520,20 @@ function DashboardContent() {
     };
   };
 
-  const filteredDrawings = drawings.filter((d) =>
-    d.name.toLowerCase().includes(searchQuery.toLowerCase()),
-  );
+  const filteredDrawings = drawings.filter((d) => {
+    const matchesSearch = d.name.toLowerCase().includes(searchQuery.toLowerCase());
+    
+    if (whiteboardSubTab === "todo") {
+      return matchesSearch && !d.completed;
+    } else {
+      // Logic for Completed Tab: Show if completed AND modified within last 7 days
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      const lastModified = new Date(d.last_modified);
+      
+      return matchesSearch && d.completed && lastModified > sevenDaysAgo;
+    }
+  });
   const incompleteDrawings = drawings.filter((d) => !d.completed);
   const addablePersonnel = profiles.filter(
     (p) => !roomMembers.some((m) => m.id === p.id),
@@ -767,9 +779,35 @@ function DashboardContent() {
 
           {activeTab === "whiteboard" && (
             <div className="animate-in fade-in duration-300">
-              <h2 className="text-4xl font-black uppercase tracking-tighter italic mb-8">
-                Mission Boards
-              </h2>
+              <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
+                <h2 className="text-4xl font-black uppercase tracking-tighter italic">
+                  Mission Boards
+                </h2>
+                
+                {/* SUB-TAB SWITCHER */}
+                <div className="flex bg-[#2D2A26]/5 p-1 border-2 border-[#2D2A26] self-start md:self-auto">
+                  <button
+                    onClick={() => setWhiteboardSubTab("todo")}
+                    className={`px-4 py-1.5 font-black text-[10px] uppercase tracking-widest transition-all ${
+                      whiteboardSubTab === "todo"
+                        ? "bg-[#2D2A26] text-white shadow-brutal-sm"
+                        : "text-[#2D2A26] hover:bg-white/50"
+                    }`}
+                  >
+                    Active Tasks
+                  </button>
+                  <button
+                    onClick={() => setWhiteboardSubTab("completed")}
+                    className={`px-4 py-1.5 font-black text-[10px] uppercase tracking-widest transition-all ${
+                      whiteboardSubTab === "completed"
+                        ? "bg-[#2D2A26] text-white shadow-brutal-sm"
+                        : "text-[#2D2A26] hover:bg-white/50"
+                    }`}
+                  >
+                    Archive (7d)
+                  </button>
+                </div>
+              </div>
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-10">
                 <button
                   onClick={createNewDrawing}
@@ -832,7 +870,7 @@ function DashboardContent() {
                             {new Date(draw.last_modified).toLocaleDateString()}
                           </span>
                           {(() => {
-                            const badge = getDueDateBadge(task.due_date);
+                            const badge = getDueDateBadge(task.due_date, draw.completed);
                             return badge ? (
                               <span
                                 className={`px-2 py-0.5 font-black text-[9px] uppercase tracking-tight ${badge.color}`}
