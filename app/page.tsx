@@ -27,7 +27,8 @@ import {
 } from "lucide-react";
 
 import { PremiumPaymentFlow } from "./premium-payment";
-import TeamHeatmap from "@/components/TeamHeatmap"; // NEW: Imported the heatmap
+import TeamHeatmap from "@/components/TeamHeatmap";
+import AutoAssignButton from "@/components/AutoAssignButton";
 import Loader from "@/app/board/[id]/components/Loader";
 import Image from "next/image";
 import type { Profile } from "@/types/index";
@@ -1251,6 +1252,26 @@ function DashboardContent() {
 
               {/* FULL WIDTH TASK ROSTER */}
               <div className="border-t-4 border-[#2D2A26] pt-6">
+
+                {/* --- NEW AI BUTTON COMPONENT --- */}
+                <AutoAssignButton 
+                  boardId={detailsModalOpen}
+                  task={boardTasks[detailsModalOpen]}
+                  profiles={profiles}
+                  onSuccess={(primaryId, collabs, newDesc) => {
+                    // This updates the UI instantly without needing a page refresh
+                    setBoardTasks(prev => ({
+                      ...prev,
+                      [detailsModalOpen]: {
+                        ...prev[detailsModalOpen],
+                        assigned_to: primaryId,
+                        collaborators: collabs,
+                        description: newDesc
+                      }
+                    }));
+                  }}
+                />
+                {/* --- END NEW AI BUTTON --- */}
                 <p className="text-[10px] font-bold mb-4 uppercase opacity-60 tracking-widest">Personnel Assignment</p>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {profiles.map((employee) => {
