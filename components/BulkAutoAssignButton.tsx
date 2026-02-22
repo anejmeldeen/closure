@@ -58,7 +58,7 @@ export default function BulkAutoAssignButton({ tasks, profiles, onSuccess }: Bul
       const data = await res.json();
       setPendingProposals(data.proposals);
     } catch (err: any) {
-      setErrorMsg("Protocol Interrupted: " + err.message);
+      setErrorMsg("Allocation Interrupted: " + err.message);
     } finally { setIsAssigning(false); }
   };
 
@@ -80,7 +80,7 @@ export default function BulkAutoAssignButton({ tasks, profiles, onSuccess }: Bul
         const originalTask = tasks.find(t => t.id === prop.drawingId);
         
         // Removed robot emoji from description block as requested
-        const desc = `${originalTask?.description || ''}\n\n--- PROTOCOL ALLOCATION ---\n` + 
+        const desc = `${originalTask?.description || ''}\n\n--- ALLOCATION ---\n` + 
                      sortedTeam.map((t: any) => `• ${t.name}: ${t.allocated_hours}h`).join('\n') + 
                      `\nReasoning: ${prop.reasoning}`;
         

@@ -188,11 +188,11 @@ export default function TeamHeatmap({ userIds, title = "Team Heatmap", subtitle 
       <div className="mt-8 flex items-center justify-between border-t-2 border-[#2D2A26] pt-4 shrink-0">
         <span className="text-[9px] font-black uppercase opacity-60">Key</span>
         <div className="flex flex-wrap items-center gap-4">
-          <div className="flex items-center gap-1.5"><div className="w-4 h-4 bg-white border-2 border-[#2D2A26]" /><span className="text-[9px] font-black uppercase">Clear (0)</span></div>
+          <div className="flex items-center gap-1.5"><div className="w-4 h-4 bg-white border-2 border-[#2D2A26]" /><span className="text-[9px] font-black uppercase">Full Team Free</span></div>
           <div className="flex items-center gap-1.5"><div className="w-4 h-4 bg-[#fef08a] border-2 border-[#2D2A26]" /><span className="text-[9px] font-black uppercase">Light</span></div>
           <div className="flex items-center gap-1.5"><div className="w-4 h-4 bg-[#ffbb00] border-2 border-[#2D2A26]" /><span className="text-[9px] font-black uppercase">Moderate</span></div>
           <div className="flex items-center gap-1.5"><div className="w-4 h-4 bg-[#f97316] border-2 border-[#2D2A26]" /><span className="text-[9px] font-black uppercase">Heavy</span></div>
-          <div className="flex items-center gap-1.5"><div className="w-4 h-4 bg-[#dc2626] border-2 border-[#2D2A26]" /><span className="text-[9px] font-black uppercase">Full Team</span></div>
+          <div className="flex items-center gap-1.5"><div className="w-4 h-4 bg-[#dc2626] border-2 border-[#2D2A26]" /><span className="text-[9px] font-black uppercase">Full Team Busy</span></div>
         </div>
       </div>
     </div>

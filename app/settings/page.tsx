@@ -453,7 +453,7 @@ export default function SettingsPage() {
                       onKeyDown={(e) => {
                         if (e.key === "Enter") addSkill();
                       }}
-                      placeholder="E.g. React, Logistics, DevOps..."
+                      placeholder="E.g. Hackathons, Software Engineering, Trombone Playing..."
                       className="flex-1 border-2 border-[#2D2A26] px-4 py-3 text-[12px] font-bold uppercase bg-white outline-none shadow-brutal-sm"
                     />
                     <button
