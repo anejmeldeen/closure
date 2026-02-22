@@ -145,7 +145,6 @@ function DashboardContent() {
         supabase
           .from("drawings")
           .select("*")
-          .eq("user_id", authUser.id)
           .order("last_modified", { ascending: false }),
         supabase
           .from("chat_room_members")
