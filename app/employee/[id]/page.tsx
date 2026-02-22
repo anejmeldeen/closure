@@ -149,7 +149,7 @@ export default function EmployeePage({
               <div className="flex items-center gap-3 mb-4">
                 <Code2 size={20} />
                 <h3 className="text-xl font-black uppercase tracking-tight italic">
-                  Skill Matrix
+                  Skills
                 </h3>
               </div>
               <div className="flex flex-wrap gap-3">
