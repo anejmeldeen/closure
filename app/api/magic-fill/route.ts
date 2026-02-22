@@ -17,10 +17,11 @@ export async function POST(req: NextRequest) {
       The user may be working on math, physics, art, or any subject, so please think carefully about how you should complete it.
       
       CRITICAL VISUAL STYLE:
-      - **STYLE MATCHING**: You MUST mimic the line weight, "hand-drawn" feel, and aesthetic of the user's existing work.
+      - **STYLE MATCHING**: You MUST mimic the line weight, "hand-drawn" feel, and aesthetic of the user's existing work. It should look like a high quality doodle in a notebook!
       - **IMAGE TYPE**: Generate a flat, 2D digital scan.
       - **BACKGROUND**: PURE WHITE (#FFFFFF) only.
       - **INK**: PURE BLACK (#000000) high-contrast lines only.
+      - **SPATIAL AWARENESS MOST IMPORTANT**: The image must not spatially be placed on top of any text. please be very aware of the location you are putting your content! 
       - **SPATIAL AWARENESS**: Integrate your additions seamlessly. Do not redraw the original; only provide the new content.
       - **TEXT RULE**: Use text ONLY if the user is solving a mathematical/textual problem. If the work is purely a diagram, DRAW ONLY.
     `;
