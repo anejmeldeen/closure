@@ -2,7 +2,7 @@
 
 import { useEditor } from 'tldraw';
 import { useAiNoteFiller } from '@/hooks/useAINoteFiller';
-import { Sparkles, Loader2 } from 'lucide-react';
+import { Sparkles, Loader2, ArrowLeft } from 'lucide-react';
 
 export default function EditorContent({ handleBack }: { handleBack: () => void }) {
   const editor = useEditor();
@@ -15,33 +15,42 @@ export default function EditorContent({ handleBack }: { handleBack: () => void }
   } = useAiNoteFiller(editor);
 
   return (
-    <div className="absolute top-6 left-1/2 -translate-x-1/2 z-[3000] pointer-events-none flex gap-4">
-      {/* BACK BUTTON */}
+    <div className="absolute top-6 left-1/2 -translate-x-1/2 z-[3000] pointer-events-none flex gap-3">
+      {/* BACK BUTTON - Paper White Style */}
       <button 
         onClick={handleBack}
-        className="pointer-events-auto flex items-center justify-center h-12 px-6 bg-white border-4 border-[#2D2A26] text-[#2D2A26] shadow-[4px_4px_0px_0px_rgba(45,42,38,1)] hover:translate-y-1 hover:shadow-none transition-all text-xs font-black uppercase tracking-widest"
+        className="pointer-events-auto flex items-center gap-2 h-10 px-4 bg-[#fcfaf2] border-2 border-[#2D2A26] text-[#2D2A26] shadow-[3px_3px_0px_0px_rgba(45,42,38,1)] hover:translate-y-[1px] hover:translate-x-[1px] hover:shadow-[1px_1px_0px_0px_rgba(45,42,38,1)] transition-all text-[10px] font-black uppercase tracking-widest"
       >
-        Back to HQ
+        <ArrowLeft size={14} strokeWidth={3} />
+        Back
       </button>
 
-      {/* AI MAGIC FILL CONTROLS */}
+      {/* AI CONTROLS */}
       {pendingShapeId ? (
-        <div className="pointer-events-auto flex gap-4 animate-in fade-in slide-in-from-top-2">
-          <button onClick={handleAccept} className="h-12 px-6 bg-[#86efac] border-4 border-[#2D2A26] text-[#2D2A26] shadow-[4px_4px_0px_0px_rgba(45,42,38,1)] hover:translate-y-1 hover:shadow-none transition-all font-black text-xs uppercase tracking-widest">
-            Accept
+        <div className="pointer-events-auto flex gap-3 animate-in fade-in slide-in-from-top-2">
+          <button 
+            onClick={handleAccept} 
+            className="h-10 px-5 bg-[#86efac] border-2 border-[#2D2A26] text-[#2D2A26] shadow-[3px_3px_0px_0px_rgba(45,42,38,1)] hover:translate-y-[1px] hover:translate-x-[1px] hover:shadow-[1px_1px_0px_0px_rgba(45,42,38,1)] transition-all font-black text-[10px] uppercase tracking-widest"
+          >
+            Commit
           </button>
-          <button onClick={handleReject} className="h-12 px-6 bg-[#fca5a5] border-4 border-[#2D2A26] text-[#2D2A26] shadow-[4px_4px_0px_0px_rgba(45,42,38,1)] hover:translate-y-1 hover:shadow-none transition-all font-black text-xs uppercase tracking-widest">
-            Reject
+          <button 
+            onClick={handleReject} 
+            className="h-10 px-5 bg-[#fca5a5] border-2 border-[#2D2A26] text-[#2D2A26] shadow-[3px_3px_0px_0px_rgba(45,42,38,1)] hover:translate-y-[1px] hover:translate-x-[1px] hover:shadow-[1px_1px_0px_0px_rgba(45,42,38,1)] transition-all font-black text-[10px] uppercase tracking-widest"
+          >
+            Discard
           </button>
         </div>
       ) : (
         <button 
-          onClick={generateSolution}
+          onClick={() => generateSolution()}
           disabled={isGenerating}
-          className={`pointer-events-auto flex items-center gap-3 h-12 px-6 border-4 border-[#2D2A26] text-[#2D2A26] shadow-[4px_4px_0px_0px_rgba(45,42,38,1)] hover:translate-y-1 hover:shadow-none transition-all text-xs font-black uppercase tracking-widest ${isGenerating ? 'bg-gray-200 opacity-80 cursor-not-allowed' : 'bg-[#ffbb00]'}`}
+          className={`pointer-events-auto flex items-center gap-2 h-10 px-5 border-2 border-[#2D2A26] text-[#2D2A26] shadow-[3px_3px_0px_0px_rgba(45,42,38,1)] hover:translate-y-[1px] hover:translate-x-[1px] hover:shadow-[1px_1px_0px_0px_rgba(45,42,38,1)] transition-all text-[10px] font-black uppercase tracking-widest ${
+            isGenerating ? 'bg-gray-100 opacity-80 cursor-not-allowed' : 'bg-[#ffbb00]'
+          }`}
         >
-          {isGenerating ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
-          {isGenerating ? 'Synthesizing...' : 'Magic Fill'}
+          {isGenerating ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} strokeWidth={3} />}
+          {isGenerating ? 'Analyzing...' : 'Autofill'}
         </button>
       )}
     </div>
