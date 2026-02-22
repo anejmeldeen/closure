@@ -235,7 +235,7 @@ export default function SettingsPage() {
                     <img src={profile?.avatar_url || `https://api.dicebear.com/7.x/pixel-art/svg?seed=${profile?.id}`} alt="Current Avatar" className="w-full h-full object-cover aspect-square p-1" />
                   </div>
                   <div>
-                    <h2 className="text-2xl font-black uppercase italic tracking-tight">Identity Matrix</h2>
+                    <h2 className="text-2xl font-black uppercase italic tracking-tight">Profile Picture</h2>
                     <p className="font-bold text-xs uppercase opacity-60 tracking-widest mt-1">Select an icon or provide a custom image URL</p>
                   </div>
                 </div>
