@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
       - **INK**: PURE BLACK (#000000) high-contrast lines only.
       - **SPATIAL AWARENESS MOST IMPORTANT**: The image must not spatially be placed on top of any text. please be very aware of the location you are putting your content! 
       - **SPATIAL AWARENESS**: Integrate your additions seamlessly. Do not redraw the original; only provide the new content.
-      - **TEXT RULE**: Use text ONLY if the user is solving a mathematical/textual problem. If the work is purely a diagram, DRAW ONLY.
+      - **TEXT RULE**: Please do not generate any text. Simply fill in the drawing.
     `;
 
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
